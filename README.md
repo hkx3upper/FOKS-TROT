@@ -27,3 +27,4 @@ https://www.microsoft.com/en-us/download/details.aspx?id=30688
 3.使用Visual Studio 2019编译Debug x64驱动，编译User和UserDll  
 4.建议在Windows 10 x64，NTFS环境运行（这里主要是FltFlushBuffers2只支持NTFS），
 
+#其他实现细节在开发文档.pdf中
