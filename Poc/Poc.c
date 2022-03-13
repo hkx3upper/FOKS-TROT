@@ -27,22 +27,11 @@ Environment:
 #include "fileinfo.h"
 #include "commport.h"
 
-#pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
-
+#pragma prefast(disable \
+                : __WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 PFLT_FILTER gFilterHandle;
 ULONG_PTR OperationStatusCtx = 1;
-
-#define PTDBG_TRACE_ROUTINES            0x00000001
-#define PTDBG_TRACE_OPERATION_STATUS    0x00000002
-
-ULONG gTraceFlags = 0;
-
-
-#define PT_DBG_PRINT( _dbgLevel, _string )          \
-    (FlagOn(gTraceFlags,(_dbgLevel)) ?              \
-        DbgPrint _string :                          \
-        ((int)0))
 
 /*************************************************************************
     Prototypes
@@ -52,87 +41,72 @@ EXTERN_C_START
 
 DRIVER_INITIALIZE DriverEntry;
 NTSTATUS
-DriverEntry (
+DriverEntry(
     _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-    );
+    _In_ PUNICODE_STRING RegistryPath);
 
 NTSTATUS
-PocInstanceSetup (
+PocInstanceSetup(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
-    _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-    );
+    _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType);
 
-VOID
-PocInstanceTeardownStart (
+VOID PocInstanceTeardownStart(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    );
+    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags);
 
-VOID
-PocInstanceTeardownComplete (
+VOID PocInstanceTeardownComplete(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    );
-
+    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags);
 
 NTSTATUS
-PocUnload (
-    _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-    );
+PocUnload(
+    _In_ FLT_FILTER_UNLOAD_FLAGS Flags);
 
 NTSTATUS
-PocInstanceQueryTeardown (
+PocInstanceQueryTeardown(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
-    );
+    _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags);
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreCreateOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
-    );
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext);
 
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCreateOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-    );
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreCleanupOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-    );
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext);
 
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCleanupOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-    );
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreCloseOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-    );
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext);
 
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCloseOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-);
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
 
 EXTERN_C_END
 
@@ -355,66 +329,64 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
 
 #endif // TODO
 
-    { IRP_MJ_CREATE,
-      0,
-      PocPreCreateOperation,
-      PocPostCreateOperation },
+    {IRP_MJ_CREATE,
+     0,
+     PocPreCreateOperation,
+     PocPostCreateOperation},
 
-    { IRP_MJ_READ,
-      0,
-      PocPreReadOperation,
-      PocPostReadOperation },
+    {IRP_MJ_READ,
+     0,
+     PocPreReadOperation,
+     PocPostReadOperation},
 
-    { IRP_MJ_WRITE,
-      0,
-      PocPreWriteOperation,
-      PocPostWriteOperation },
+    {IRP_MJ_WRITE,
+     0,
+     PocPreWriteOperation,
+     PocPostWriteOperation},
 
-    { IRP_MJ_QUERY_INFORMATION,
-      0,
-      PocPreQueryInformationOperation,
-      PocPostQueryInformationOperation },
+    {IRP_MJ_QUERY_INFORMATION,
+     0,
+     PocPreQueryInformationOperation,
+     PocPostQueryInformationOperation},
 
-    { IRP_MJ_SET_INFORMATION,
-      0,
-      PocPreSetInformationOperation,
-      PocPostSetInformationOperation },
+    {IRP_MJ_SET_INFORMATION,
+     0,
+     PocPreSetInformationOperation,
+     PocPostSetInformationOperation},
 
-    { IRP_MJ_CLEANUP,
-      0,
-      PocPreCleanupOperation,
-      PocPostCleanupOperation },
+    {IRP_MJ_CLEANUP,
+     0,
+     PocPreCleanupOperation,
+     PocPostCleanupOperation},
 
-    { IRP_MJ_CLOSE,
-      0,
-      PocPreCloseOperation,
-      PocPostCloseOperation },
+    {IRP_MJ_CLOSE,
+     0,
+     PocPreCloseOperation,
+     PocPostCloseOperation},
 
-    { IRP_MJ_OPERATION_END }
-};
+    {IRP_MJ_OPERATION_END}};
 
 const FLT_CONTEXT_REGISTRATION ContextRegistration[] = {
 
-    { FLT_STREAM_CONTEXT,
-      0,
-      PocContextCleanup,
-      POC_STREAM_CONTEXT_SIZE,
-      POC_STREAM_CONTEXT_TAG },
+    {FLT_STREAM_CONTEXT,
+     0,
+     PocContextCleanup,
+     POC_STREAM_CONTEXT_SIZE,
+     POC_STREAM_CONTEXT_TAG},
 
-    { FLT_STREAMHANDLE_CONTEXT,
-      0,
-      PocContextCleanup,
-      POC_STREAMHANDLE_CONTEXT_SIZE,
-      POC_STREAMHANDLE_CONTEXT_TAG },
+    {FLT_STREAMHANDLE_CONTEXT,
+     0,
+     PocContextCleanup,
+     POC_STREAMHANDLE_CONTEXT_SIZE,
+     POC_STREAMHANDLE_CONTEXT_TAG},
 
-    { FLT_VOLUME_CONTEXT,
-      0,
-      PocContextCleanup,
-      POC_VOLUME_CONTEXT_SIZE,
-      POC_VOLUME_CONTEXT_TAG },
+    {FLT_VOLUME_CONTEXT,
+     0,
+     PocContextCleanup,
+     POC_VOLUME_CONTEXT_SIZE,
+     POC_VOLUME_CONTEXT_TAG},
 
-    { FLT_CONTEXT_END }
-};
+    {FLT_CONTEXT_END}};
 
 //
 //  This defines what we want to filter with FltMgr
@@ -422,35 +394,32 @@ const FLT_CONTEXT_REGISTRATION ContextRegistration[] = {
 
 CONST FLT_REGISTRATION FilterRegistration = {
 
-    sizeof( FLT_REGISTRATION ),         //  Size
-    FLT_REGISTRATION_VERSION,           //  Version
-    0,                                  //  Flags
+    sizeof(FLT_REGISTRATION), //  Size
+    FLT_REGISTRATION_VERSION, //  Version
+    0,                        //  Flags
 
-    ContextRegistration,                //  Context
-    Callbacks,                          //  Operation callbacks
+    ContextRegistration, //  Context
+    Callbacks,           //  Operation callbacks
 
-    PocUnload,                           //  MiniFilterUnload
+    PocUnload, //  MiniFilterUnload
 
-    PocInstanceSetup,                    //  InstanceSetup
-    PocInstanceQueryTeardown,            //  InstanceQueryTeardown
-    PocInstanceTeardownStart,            //  InstanceTeardownStart
-    PocInstanceTeardownComplete,         //  InstanceTeardownComplete
+    PocInstanceSetup,            //  InstanceSetup
+    PocInstanceQueryTeardown,    //  InstanceQueryTeardown
+    PocInstanceTeardownStart,    //  InstanceTeardownStart
+    PocInstanceTeardownComplete, //  InstanceTeardownComplete
 
-    NULL,                               //  GenerateFileName
-    NULL,                               //  GenerateDestinationFileName
-    NULL                                //  NormalizeNameComponent
+    NULL, //  GenerateFileName
+    NULL, //  GenerateDestinationFileName
+    NULL  //  NormalizeNameComponent
 
 };
 
-
-
 NTSTATUS
-PocInstanceSetup (
+PocInstanceSetup(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
-    _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-    )
+    _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType)
 /*++
 
 Routine Description:
@@ -475,30 +444,31 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( Flags );
-    UNREFERENCED_PARAMETER( VolumeDeviceType );
-    UNREFERENCED_PARAMETER( VolumeFilesystemType );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
+    UNREFERENCED_PARAMETER(VolumeDeviceType);
+    UNREFERENCED_PARAMETER(VolumeFilesystemType);
 
     PAGED_CODE();
 
     PPOC_VOLUME_CONTEXT ctx = NULL;
     NTSTATUS status = STATUS_SUCCESS;
 
-
-    try {
+    try
+    {
 
         //
         //  Allocate a volume context structure.
         //
 
         status = FltAllocateContext(FltObjects->Filter,
-            FLT_VOLUME_CONTEXT,
-            sizeof(POC_VOLUME_CONTEXT),
-            NonPagedPool,
-            &ctx);
+                                    FLT_VOLUME_CONTEXT,
+                                    sizeof(POC_VOLUME_CONTEXT),
+                                    NonPagedPool,
+                                    &ctx);
 
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS(status))
+        {
 
             //
             //  We could not allocate a context, quit now
@@ -521,28 +491,27 @@ Return Value:
 
         if (0 == ctx->SectorSize)
         {
-            DbgPrint("PocInstanceSetup->PocQueryVolumeSectorSize failed.\n");
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInstanceSetup->PocQueryVolumeSectorSize failed.\n"));
             leave;
         }
-       
 
         status = FltSetVolumeContext(FltObjects->Volume,
-            FLT_SET_CONTEXT_KEEP_IF_EXISTS,
-            ctx,
-            NULL);
+                                     FLT_SET_CONTEXT_KEEP_IF_EXISTS,
+                                     ctx,
+                                     NULL);
 
-       
         //
         //  It is OK for the context to already be defined.
         //
 
-        if (status == STATUS_FLT_CONTEXT_ALREADY_DEFINED) {
+        if (status == STATUS_FLT_CONTEXT_ALREADY_DEFINED)
+        {
 
             status = STATUS_SUCCESS;
         }
-
     }
-    finally {
+    finally
+    {
 
         //
         //  Always release the context.  If the set failed, it will free the
@@ -551,24 +520,20 @@ Return Value:
         //  cleanup routine.
         //
 
-        if (ctx) {
+        if (ctx)
+        {
 
             FltReleaseContext(ctx);
         }
-
-       
     }
 
     return status;
-
 }
 
-
 NTSTATUS
-PocInstanceQueryTeardown (
+PocInstanceQueryTeardown(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags
-    )
+    _In_ FLT_INSTANCE_QUERY_TEARDOWN_FLAGS Flags)
 /*++
 
 Routine Description:
@@ -594,23 +559,20 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Poc!PocInstanceQueryTeardown: Entered\n") );
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                 ("Poc!PocInstanceQueryTeardown: Entered\n"));
 
     return STATUS_SUCCESS;
 }
 
-
-VOID
-PocInstanceTeardownStart (
+VOID PocInstanceTeardownStart(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    )
+    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags)
 /*++
 
 Routine Description:
@@ -630,21 +592,18 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Poc!PocInstanceTeardownStart: Entered\n") );
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                 ("Poc!PocInstanceTeardownStart: Entered\n"));
 }
 
-
-VOID
-PocInstanceTeardownComplete (
+VOID PocInstanceTeardownComplete(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags
-    )
+    _In_ FLT_INSTANCE_TEARDOWN_FLAGS Flags)
 /*++
 
 Routine Description:
@@ -664,25 +623,23 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Poc!PocInstanceTeardownComplete: Entered\n") );
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                 ("Poc!PocInstanceTeardownComplete: Entered\n"));
 }
-
 
 /*************************************************************************
     MiniFilter initialization and unload routines.
 *************************************************************************/
 
 NTSTATUS
-DriverEntry (
+DriverEntry(
     _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PUNICODE_STRING RegistryPath
-    )
+    _In_ PUNICODE_STRING RegistryPath)
 /*++
 
 Routine Description:
@@ -706,39 +663,41 @@ Return Value:
 {
     NTSTATUS status;
 
-    UNREFERENCED_PARAMETER( RegistryPath );
+    UNREFERENCED_PARAMETER(RegistryPath);
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Poc!DriverEntry: Entered\n") );
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                 ("Poc!DriverEntry: Entered\n"));
 
     //
     //  Register with FltMgr to tell it our callback routines
     //
 
-    status = FltRegisterFilter( DriverObject,
-                                &FilterRegistration,
-                                &gFilterHandle );
+    status = FltRegisterFilter(DriverObject,
+                               &FilterRegistration,
+                               &gFilterHandle);
 
-    FLT_ASSERT( NT_SUCCESS( status ) );
+    FLT_ASSERT(NT_SUCCESS(status));
 
-    if (NT_SUCCESS( status )) {
+    if (NT_SUCCESS(status))
+    {
 
         //
         //  Start filtering i/o
         //
 
-        status = FltStartFiltering( gFilterHandle );
+        status = FltStartFiltering(gFilterHandle);
 
-        if (!NT_SUCCESS( status )) {
+        if (!NT_SUCCESS(status))
+        {
 
-            FltUnregisterFilter( gFilterHandle );
+            FltUnregisterFilter(gFilterHandle);
         }
 
         status = PocInitCommPort();
 
         if (STATUS_SUCCESS != status)
         {
-            DbgPrint("DriverEntry->PocInitCommPort failed. Status = 0x%x.\n", status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("DriverEntry->PocInitCommPort failed. Status = 0x%x.\n", status));
             FltUnregisterFilter(gFilterHandle);
         }
 
@@ -746,7 +705,7 @@ Return Value:
 
         if (STATUS_SUCCESS != status)
         {
-            DbgPrint("DriverEntry->PocInitAesKey failed. Status = 0x%x.\n", status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("DriverEntry->PocInitAesKey failed. Status = 0x%x.\n", status));
             PocCloseCommPort();
             FltUnregisterFilter(gFilterHandle);
         }
@@ -755,19 +714,16 @@ Return Value:
 
         RtlMoveMemory(
             EncryptionTailer.EncryptionAlgorithmType,
-            POC_ENCRYPTION_HEADER_EA_TYPE, 
+            POC_ENCRYPTION_HEADER_EA_TYPE,
             strlen(POC_ENCRYPTION_HEADER_EA_TYPE));
-
-
     }
 
     return status;
 }
 
 NTSTATUS
-PocUnload (
-    _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-    )
+PocUnload(
+    _In_ FLT_FILTER_UNLOAD_FLAGS Flags)
 /*++
 
 Routine Description:
@@ -787,43 +743,40 @@ Return Value:
 
 --*/
 {
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Poc!PocUnload: Entered\n") );
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                 ("Poc!PocUnload: Entered\n"));
 
     PocCloseCommPort();
 
     PocAesCleanup();
 
-    FltUnregisterFilter( gFilterHandle );
+    FltUnregisterFilter(gFilterHandle);
 
     return STATUS_SUCCESS;
 }
-
 
 /*************************************************************************
     MiniFilter callback routines.
 *************************************************************************/
 FLT_PREOP_CALLBACK_STATUS
-PocPreCreateOperation (
+PocPreCreateOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext
-    )
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext)
 {
     UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( CompletionContext );
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
 
     NTSTATUS Status;
 
-    WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR FileExtension[POC_MAX_NAME_LENGTH] = {0};
+    WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
 
-    
     Status = PocGetFileNameOrExtension(Data, FileExtension, FileName);
 
     if (STATUS_SUCCESS != Status)
@@ -855,19 +808,17 @@ EXIT:
     return Status;
 }
 
-
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCreateOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-    )
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER( Data );
-    UNREFERENCED_PARAMETER( FltObjects );
-    UNREFERENCED_PARAMETER( CompletionContext );
-    UNREFERENCED_PARAMETER( Flags );
+    UNREFERENCED_PARAMETER(Data);
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(CompletionContext);
+    UNREFERENCED_PARAMETER(Flags);
 
     PAGED_CODE();
 
@@ -876,9 +827,8 @@ PocPostCreateOperation(
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
-
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
+    CHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
+    WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
 
     Status = PocGetProcessName(Data, ProcessName);
 
@@ -898,20 +848,19 @@ PocPostCreateOperation(
     }
 
     Status = PocFindOrCreateStreamContext(
-        Data->Iopb->TargetInstance, 
-        Data->Iopb->TargetFileObject, 
-        TRUE, 
-        &StreamContext, 
+        Data->Iopb->TargetInstance,
+        Data->Iopb->TargetFileObject,
+        TRUE,
+        &StreamContext,
         &ContextCreated);
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocPostCreateOperation->CtxFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n", 
-            Status, ProcessName);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->CtxFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n",
+                                            Status, ProcessName));
         Status = FLT_POSTOP_FINISHED_PROCESSING;
         goto EXIT;
     }
-
 
     if (ContextCreated)
     {
@@ -919,31 +868,28 @@ PocPostCreateOperation(
 
         if (STATUS_SUCCESS != Status)
         {
-            DbgPrint("PocPostCreateOperation->PocGetFileNameOrExtension failed. Status = 0x%x ProcessName = %s\n",
-                Status, ProcessName);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocGetFileNameOrExtension failed. Status = 0x%x ProcessName = %s\n",
+                                                Status, ProcessName));
             Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
-        DbgPrint("PocPostCreateOperation->ContextCreated Fcb = %p FileName = %ws ProcessName = %s.\n", 
-            FltObjects->FileObject->FsContext,
-            FileName,
-            ProcessName);
-
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->ContextCreated Fcb = %p FileName = %ws ProcessName = %s.\n",
+                                            FltObjects->FileObject->FsContext,
+                                            FileName,
+                                            ProcessName));
 
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
         RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
 
-        if(wcslen(FileName) < POC_MAX_NAME_LENGTH)
+        if (wcslen(FileName) < POC_MAX_NAME_LENGTH)
             RtlMoveMemory(StreamContext->FileName, FileName, wcslen(FileName) * sizeof(WCHAR));
 
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-        
     }
 
-    //DbgPrint("\nPocPostCreateOperation->enter ProcessName = %s FileName = %ws.\n", ProcessName, FileName);
-
+    // PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPostCreateOperation->enter ProcessName = %s FileName = %ws.\n", ProcessName, FileName);
 
     if (FALSE == StreamContext->IsCipherText)
     {
@@ -961,21 +907,19 @@ PocPostCreateOperation(
         }
     }
 
-    
-
     /*
-    * 密文缓冲建立，如果已经有了，就直接用
-    * 应该以DataSectionObject是否创建为准
-    */
+     * 密文缓冲建立，如果已经有了，就直接用
+     * 应该以DataSectionObject是否创建为准
+     */
 
     Status = PocIsUnauthorizedProcess(ProcessName);
 
-    if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, 
-        (FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
+    if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
+               (FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
         POC_IS_UNAUTHORIZED_PROCESS == Status)
     {
 
-        DbgPrint("\nPocPostCreateOperation->SectionObjectPointers operation enter Process = %s.\n", ProcessName);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPostCreateOperation->SectionObjectPointers operation enter Process = %s.\n", ProcessName));
 
         if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject)
         {
@@ -983,31 +927,30 @@ PocPostCreateOperation(
 
             if (STATUS_SUCCESS != Status)
             {
-                DbgPrint("PocPostCreateOperation->PocInitShadowSectionObjectPointers failed. Status = 0x%x\n", Status);
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocInitShadowSectionObjectPointers failed. Status = 0x%x\n", Status));
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
-
         }
         else
         {
-            
+
             Status = PocChangeSectionObjectPointerSafe(
                 FltObjects->FileObject,
                 StreamContext->ShadowSectionObjectPointers);
 
             if (STATUS_SUCCESS != Status)
             {
-                DbgPrint("PocPostCreateOperation->PocChangeSectionObjectPointerSafe failed.\n");
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocChangeSectionObjectPointerSafe failed.\n"));
                 DbgBreakPoint();
             }
 
-            DbgPrint("PocPostCreateOperation->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
-                StreamContext->FileName);
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostCreateOperation->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
+                StreamContext->FileName));
         }
 
         if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
-            (FILE_READ_DATA)))
+                   (FILE_READ_DATA)))
         {
             Status = PocFlushOriginalCache(
                 FltObjects,
@@ -1015,19 +958,16 @@ PocPostCreateOperation(
 
             if (STATUS_SUCCESS != Status)
             {
-                DbgPrint("PocPostCreateOperation->PocFlushOriginalCache failed. Status = 0x%x\n", Status);
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocFlushOriginalCache failed. Status = 0x%x\n", Status));
             }
             else
             {
-                DbgPrint("\nPocPostCreateOperation->PocFlushOriginalCache %ws success.\n", StreamContext->FileName);
+                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPostCreateOperation->PocFlushOriginalCache %ws success.\n", StreamContext->FileName));
             }
         }
 
-
-        DbgPrint("\n");
-        
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n"));
     }
-
 
     Status = FLT_POSTOP_FINISHED_PROCESSING;
 
@@ -1042,24 +982,22 @@ EXIT:
     return Status;
 }
 
-
 FLT_PREOP_CALLBACK_STATUS
 PocPreCleanupOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
 
-    NTSTATUS Status; 
+    NTSTATUS Status;
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    CHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
 
     Status = PocGetProcessName(Data, ProcessName);
 
@@ -1072,16 +1010,14 @@ PocPreCleanupOperation(
 
     if (STATUS_SUCCESS != Status)
     {
-        if (STATUS_NOT_FOUND != Status)      //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            DbgPrint("PocPreCleanupOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+        if (STATUS_NOT_FOUND != Status) //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreCleanupOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
     }
-    
 
-    /*DbgPrint("\nPocPreCleanupOperation->enter ProcessName = %s File = %ws StreamContext->Flag = 0x%x.\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreCleanupOperation->enter ProcessName = %s File = %ws StreamContext->Flag = 0x%x.\n",
         ProcessName, StreamContext->FileName, StreamContext->Flag);*/
-
 
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
 
@@ -1096,31 +1032,26 @@ EXIT:
     return Status;
 }
 
-
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCleanupOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-)
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
-
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreCloseOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -1131,34 +1062,32 @@ PocPreCloseOperation(
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    CHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
 
     Status = PocGetProcessName(Data, ProcessName);
 
     Status = PocFindOrCreateStreamContext(
-        Data->Iopb->TargetInstance, 
-        Data->Iopb->TargetFileObject, 
-        FALSE, 
-        &StreamContext, 
+        Data->Iopb->TargetInstance,
+        Data->Iopb->TargetFileObject,
+        FALSE,
+        &StreamContext,
         &ContextCreated);
 
     if (STATUS_SUCCESS != Status)
     {
-        if (STATUS_NOT_FOUND != Status)      //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            DbgPrint("PocPreCloseOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+        if (STATUS_NOT_FOUND != Status) //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreCloseOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
     }
 
-
-    /*DbgPrint("\nPocPreCloseOperation->enter ProcessName = %s File = %ws StreamContext->Flag = 0x%x.\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreCloseOperation->enter ProcessName = %s File = %ws StreamContext->Flag = 0x%x.\n",
         ProcessName, StreamContext->FileName, StreamContext->Flag);*/
 
-
     /*
-    * Close意味着CM和MM已经处理完毕，FO的引用清零，
-    * 其实SOP换不换回来无所谓，为了严谨一些，还是换回来吧
-    */
+     * Close意味着CM和MM已经处理完毕，FO的引用清零，
+     * 其实SOP换不换回来无所谓，为了严谨一些，还是换回来吧
+     */
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
     {
 
@@ -1166,12 +1095,9 @@ PocPreCloseOperation(
             FltObjects->FileObject,
             StreamContext->OriginSectionObjectPointers);
 
-
-        DbgPrint("PocPreCloseOperation->Change SOP success ProcessName = %s File = %ws.\n", 
-            ProcessName, StreamContext->FileName);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreCloseOperation->Change SOP success ProcessName = %s File = %ws.\n", 
+            ProcessName, StreamContext->FileName));
     }
-
-
 
     *CompletionContext = StreamContext;
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -1188,14 +1114,12 @@ EXIT:
     return Status;
 }
 
-
 FLT_POSTOP_CALLBACK_STATUS
 PocPostCloseOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-)
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -1211,8 +1135,7 @@ PocPostCloseOperation(
 
     StreamContext = CompletionContext;
 
-
-    if (POC_TO_APPEND_ENCRYPTION_TAILER == StreamContext->Flag || 
+    if (POC_TO_APPEND_ENCRYPTION_TAILER == StreamContext->Flag ||
         POC_TAILER_WRONG_FILE_NAME == StreamContext->Flag)
     {
         PocUpdateFlagInStreamContext(StreamContext, POC_BEING_APPEND_ENC_TAILER);
@@ -1222,16 +1145,15 @@ PocPostCloseOperation(
         if (STATUS_SUCCESS != Status)
         {
             PocUpdateFlagInStreamContext(StreamContext, POC_TO_APPEND_ENCRYPTION_TAILER);
-            DbgPrint("PocPostCloseOperation->PocAppendEncTailerToFile failed. Status = 0x%x. Try again.\n", Status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCloseOperation->PocAppendEncTailerToFile failed. Status = 0x%x. Try again.\n", Status));
             Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
-        DbgPrint("\nPocPostCloseOperation->Append tailer success. FileName = %ws.\n\n", 
-            StreamContext->FileName);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPostCloseOperation->Append tailer success. FileName = %ws.\n\n", 
+            StreamContext->FileName));
 
         PocUpdateFlagInStreamContext(StreamContext, POC_FILE_HAS_ENCRYPTION_TAILER);
-
     }
     else if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
     {
@@ -1242,15 +1164,14 @@ PocPostCloseOperation(
         if (STATUS_SUCCESS != Status)
         {
             PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
-            DbgPrint("PocPostCloseOperation->PocReentryToEncrypt failed. Status = 0x%x. Try again.\n", Status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCloseOperation->PocReentryToEncrypt failed. Status = 0x%x. Try again.\n", Status));
             Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
-        DbgPrint("\nPocPostCloseOperation->PocReentryToEncrypt success. FileName = %ws.\n\n", 
-            StreamContext->FileName);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPostCloseOperation->PocReentryToEncrypt success. FileName = %ws.\n\n",
+                                            StreamContext->FileName));
     }
-
 
 EXIT:
 

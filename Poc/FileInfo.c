@@ -36,7 +36,7 @@ PocPreQueryInformationOperation(
     if (STATUS_SUCCESS != Status)
     {
         if (STATUS_NOT_FOUND != Status)      //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            DbgPrint("PocPreQueryInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreQueryInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
     }
@@ -54,7 +54,7 @@ PocPreQueryInformationOperation(
     }
 
 
-    /*DbgPrint("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %s File = %ws.\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %s File = %ws.\n",
         Data->Iopb->Parameters.QueryFileInformation.FileInformationClass,
         ProcessName, StreamContext->FileName);*/
 
@@ -262,26 +262,26 @@ PocPostSetInformationOperation(
 
                 if (STATUS_SUCCESS == Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws.\n", NewFileName);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws.\n", NewFileName));
                 }
                 else
                 {
-                    DbgPrint("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws failed. Status = 0x%x.\n", 
-                        NewFileName, Status);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws failed. Status = 0x%x.\n", 
+                        NewFileName, Status));
                 }
 
 
             }
             else
             {
-                DbgPrint("PocPostSetInformationOperation->PocUpdateNameInStreamContext %ws to %ws.\n",
-                    StreamContext->FileName, NewFileName);
+                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->PocUpdateNameInStreamContext %ws to %ws.\n",
+                    StreamContext->FileName, NewFileName));
 
                 Status = PocUpdateNameInStreamContext(StreamContext, NewFileName);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->PocUpdateNameInStreamContext failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->PocUpdateNameInStreamContext failed. Status = 0x%x\n", Status));
                     goto EXIT;
                 }
 
@@ -327,7 +327,7 @@ PocPostSetInformationOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->ZwCreateFile failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->ZwCreateFile failed. Status = 0x%x\n", Status));
                     goto EXIT;
                 }
 
@@ -340,7 +340,7 @@ PocPostSetInformationOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
                 }
 
                 if (NULL != StreamContext)
@@ -351,21 +351,21 @@ PocPostSetInformationOperation(
                         PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
                     }
 
-                    DbgPrint("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
-                        NewFileName, StreamContext->Flag);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
+                        NewFileName, StreamContext->Flag));
                 }
                 else
                 {
-                    DbgPrint("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws.\n\n",
-                        NewFileName);
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws.\n\n",
+                        NewFileName));
                 }
                 
             }
         }
         else
         {
-            DbgPrint("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s NewFileName = %ws\n",
-                Status, ProcessName, NewFileName);
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s NewFileName = %ws\n",
+                Status, ProcessName, NewFileName));
         }
 
         break;

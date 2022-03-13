@@ -68,24 +68,24 @@ PocPreWriteOperation(
     if (STATUS_SUCCESS != Status)
     {
         if (STATUS_NOT_FOUND != Status)
-            DbgPrint("PocPreWriteOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n", 
-                Status, ProcessName);
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n", 
+                Status, ProcessName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
 
-    //DbgPrint("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
     //    Data->Iopb->Parameters.Write.ByteOffset.LowPart,
     //    Data->Iopb->Parameters.Write.Length,
     //    ProcessName, StreamContext->FileName,
     //    NonCachedIo,
-    //    PagingIo);
+    //    PagingIo));
 
     if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
     {
-        DbgPrint("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %d ProcessName = %s File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %d ProcessName = %s File = %ws.\n",
+            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
@@ -94,8 +94,8 @@ PocPreWriteOperation(
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
         && NonCachedIo)
     {
-        DbgPrint("PocPreWriteOperation->Block StartingVbo = %d ProcessName = %s File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->Block StartingVbo = %d ProcessName = %s File = %ws.\n",
+            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
 
         Data->IoStatus.Status = STATUS_SUCCESS;
         Data->IoStatus.Information = Data->Iopb->Parameters.Write.Length;
@@ -109,7 +109,7 @@ PocPreWriteOperation(
 
     if (NULL == SwapBufferContext)
     {
-        DbgPrint("PocPreWriteOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n");
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
         Data->IoStatus.Information = 0;
         Status = FLT_PREOP_COMPLETE;
@@ -126,7 +126,7 @@ PocPreWriteOperation(
 
         if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
         {
-            DbgPrint("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status);
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status));
             goto EXIT;
         }
 
@@ -148,7 +148,7 @@ PocPreWriteOperation(
             LengthReturned = FileSize - StartingVbo;
         }
 
-        DbgPrint("PocPreWriteOperation->RealToWrite = %d.\n", LengthReturned);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->RealToWrite = %d.\n", LengthReturned));
         
         if (Data->Iopb->Parameters.Write.MdlAddress != NULL) 
         {
@@ -160,8 +160,8 @@ PocPreWriteOperation(
 
             if (OrigBuffer == NULL) 
             {
-                DbgPrint("PocPreWriteOperation->Failed to get system address for MDL: %p\n",
-                    Data->Iopb->Parameters.Write.MdlAddress);
+                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->Failed to get system address for MDL: %p\n",
+                    Data->Iopb->Parameters.Write.MdlAddress));
 
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
@@ -191,7 +191,7 @@ PocPreWriteOperation(
 
         if (NULL == NewBuffer)
         {
-            DbgPrint("PocPreWriteOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n");
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
             Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
             Data->IoStatus.Information = 0;
             Status = FLT_PREOP_COMPLETE;
@@ -207,7 +207,7 @@ PocPreWriteOperation(
 
             if (NewMdl == NULL) 
             {
-                DbgPrint("PocPreWriteOperation->IoAllocateMdl NewMdl failed.\n");
+                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->IoAllocateMdl NewMdl failed.\n"));
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
                 Status = FLT_PREOP_COMPLETE;
@@ -275,7 +275,7 @@ PocPreWriteOperation(
 
                     if (STATUS_SUCCESS != Status)
                     {
-                        DbgPrint("PocPreWriteOperation->PocAesECBEncrypt1 failed.\n");
+                        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->PocAesECBEncrypt1 failed.\n"));
                         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                         Data->IoStatus.Information = 0;
                         Status = FLT_PREOP_COMPLETE;
@@ -312,7 +312,7 @@ PocPreWriteOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPreWriteOperation->PocAesECBEncrypt_CiphertextStealing1 failed.\n");
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->PocAesECBEncrypt_CiphertextStealing1 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_PREOP_COMPLETE;
@@ -339,7 +339,7 @@ PocPreWriteOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPreWriteOperation->PocAesECBEncrypt_CiphertextStealing2 failed.\n");
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->PocAesECBEncrypt_CiphertextStealing2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_PREOP_COMPLETE;
@@ -361,7 +361,7 @@ PocPreWriteOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPreWriteOperation->PocAesECBEncrypt2 failed.\n");
+                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->PocAesECBEncrypt2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_PREOP_COMPLETE;
@@ -399,11 +399,11 @@ PocPreWriteOperation(
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
 
-        DbgPrint("PocPreWriteOperation->Encrypt success. StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n\n",
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreWriteOperation->Encrypt success. StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart,
             LengthReturned,
             ProcessName,
-            StreamContext->FileName);
+            StreamContext->FileName));
 
         
 

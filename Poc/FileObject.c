@@ -11,7 +11,7 @@ NTSTATUS PocInitShadowSectionObjectPointers(
 
 	if (NULL == StreamContext)
 	{
-		DbgPrint("PocInitShadowSectionObjectPointers->StreamContext is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitShadowSectionObjectPointers->StreamContext is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -26,7 +26,7 @@ NTSTATUS PocInitShadowSectionObjectPointers(
 
 	if (NULL == StreamContext->ShadowSectionObjectPointers)
 	{
-		DbgPrint("PocInitShadowSectionObjectPointers->ShadowSectionObjectPointers is NULL\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitShadowSectionObjectPointers->ShadowSectionObjectPointers is NULL\n"));
 		Status = STATUS_INVALID_PARAMETER;
 		goto EXIT;
 	}
@@ -44,20 +44,20 @@ NTSTATUS PocInitShadowSectionObjectPointers(
 
 	if (!NT_SUCCESS(Status) && STATUS_END_OF_FILE != Status)
 	{
-		DbgPrint("PocInitShadowSectionObjectPointers->FltReadFileEx init ciphertext cache failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitShadowSectionObjectPointers->FltReadFileEx init ciphertext cache failed. Status = 0x%x\n", Status));
 		goto EXIT;
 	}
 
 	if (!CcIsFileCached(FileObject))
 	{
-		DbgPrint("PocInitShadowSectionObjectPointers->after FltReadFileEx file doesn't have cache.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitShadowSectionObjectPointers->after FltReadFileEx file doesn't have cache.\n"));
 		Status = STATUS_UNSUCCESSFUL;
 		goto EXIT;
 	}
 
 
 	Status = STATUS_SUCCESS;
-	DbgPrint("PocInitShadowSectionObjectPointers->Init %ws ciphertext cache map success.\n", StreamContext->FileName);
+	PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitShadowSectionObjectPointers->Init %ws ciphertext cache map success.\n", StreamContext->FileName));
 
 EXIT:
 
@@ -82,7 +82,7 @@ NTSTATUS PocCleanupShadowSectionObjectPointers(
 		}
 		else
 		{
-			DbgPrint("PocCleanupShadowSectionObjectPointers->SharedCacheMap isn't NULL. Means file still has cache map.\n");
+			PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCleanupShadowSectionObjectPointers->SharedCacheMap isn't NULL. Means file still has cache map.\n"));
 		}
 	}
 
@@ -99,7 +99,7 @@ NTSTATUS PocChangeSectionObjectPointerSafe(
 	
 	if (NULL == SectionObjectPointers)
 	{
-		DbgPrint("PocChangeSectionObjectPointerSafe->SectionObjectPointers is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocChangeSectionObjectPointerSafe->SectionObjectPointers is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
