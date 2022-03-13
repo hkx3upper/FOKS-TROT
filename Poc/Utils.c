@@ -2,7 +2,6 @@
 #include "utils.h"
 #include "global.h"
 #include "context.h"
-#include <wdm.h>
 
 UCHAR* PsGetProcessImageFileName(PEPROCESS EProcess);
 
@@ -13,7 +12,7 @@ NTSTATUS PocGetProcessName(
 
 	if (NULL == ProcessName)
 	{
-		DbgPrint("PocGetProcessName->ProcessName is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetProcessName->ProcessName is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -23,13 +22,18 @@ NTSTATUS PocGetProcessName(
 
 	if (!eProcess) {
 
-		DbgPrint("PocGetProcessName->EProcess FltGetRequestorProcess failed.\n.");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetProcessName->EProcess FltGetRequestorProcess failed.\n."));
 		return STATUS_UNSUCCESSFUL;
 	}
 
 	if (strlen((PCHAR)PsGetProcessImageFileName(eProcess)) < POC_MAX_NAME_LENGTH)
 	{
 		RtlMoveMemory(ProcessName, PsGetProcessImageFileName(eProcess), strlen((PCHAR)PsGetProcessImageFileName(eProcess)));
+		// PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetProcessName->ProcessName: %s\n", ProcessName);
+	}
+	else
+	{
+		// PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetProcessName->ProcessName is too long.\n"));
 	}
 	
 	return STATUS_SUCCESS;
@@ -52,11 +56,11 @@ NTSTATUS PocGetFileNameOrExtension(
 	{
 		if (STATUS_FLT_NAME_CACHE_MISS == Status)
 		{
-			DbgPrint("PocGetFileExtension->FltGetFileNameInformation failed. Status = STATUS_FLT_NAME_CACHE_MISS\n");
+			PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetFileExtension->FltGetFileNameInformation failed. Status = STATUS_FLT_NAME_CACHE_MISS\n"));
 		}
 		else
 		{
-			//DbgPrint("PocGetFileExtension->FltGetFileNameInformation failed. Status = 0x%x\n", Status);
+			//PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetFileExtension->FltGetFileNameInformation failed. Status = 0x%x\n", Status));
 		}
 		return Status;
 	}
@@ -82,7 +86,7 @@ NTSTATUS PocGetFileNameOrExtension(
 		RtlMoveMemory(FileName, FileNameInfo->Name.Buffer, wcslen(FileNameInfo->Name.Buffer) * sizeof(WCHAR));
 	}
 	
-	//DbgPrint("PocGetFileExtension->FileName is %ws.\n", FileNameInfo->Name.Buffer);
+	//PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocGetFileExtension->FileName is %ws.\n", FileNameInfo->Name.Buffer);
 
 EXIT:
 	if (NULL != FileNameInfo)
@@ -108,7 +112,7 @@ ULONG PocQueryEndOfFileInfo(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocQueryEndOfFileInfo->FltQueryInformationFile failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocQueryEndOfFileInfo->FltQueryInformationFile failed. Status = 0x%x.\n", Status));
 		return 0;
 	}
 
@@ -130,7 +134,7 @@ NTSTATUS PocSetEndOfFileInfo(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocQueryEndOfFileInfo->FltSetInformationFile failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocQueryEndOfFileInfo->FltSetInformationFile failed. Status = 0x%x.\n", Status));
 	}
 
 	return Status;
@@ -151,7 +155,7 @@ USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume)
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocQueryVolumeSectorSize->FltGetVolumeProperties failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocQueryVolumeSectorSize->FltGetVolumeProperties failed. Status = 0x%x.\n", Status));
 		return 0;
 	}
 
@@ -163,7 +167,7 @@ NTSTATUS PocBypassIrrelevantProcess(IN PCHAR ProcessName)
 {
 	if (NULL == ProcessName)
 	{
-		DbgPrint("PocBypassIrrelevantProcess->ProcessName is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocBypassIrrelevantProcess->ProcessName is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -184,7 +188,7 @@ NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName)
 	
 	if (NULL == FileName)
 	{
-		DbgPrint("PocBypassWordBackupFile->FileName is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocBypassWordBackupFile->FileName is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -216,13 +220,13 @@ NTSTATUS PocParseFileNameExtension(
 {
 	if (NULL == FileName)
 	{
-		DbgPrint("PocParseFileNameExtension->FileName is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocParseFileNameExtension->FileName is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == FileExtension)
 	{
-		DbgPrint("PocParseFileNameExtension->FileExtension is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocParseFileNameExtension->FileExtension is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -251,7 +255,7 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 
 	if (NULL == FileExtension)
 	{
-		DbgPrint("PocBypassIrrelevantFileExtension->FileExtension is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocBypassIrrelevantFileExtension->FileExtension is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -277,22 +281,49 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 
 NTSTATUS PocIsUnauthorizedProcess(IN PCHAR ProcessName)
 {
-	if (NULL == ProcessName)
+	const char* authorized_process[] = {"Code.exe", "System",NULL};
+
+	if (NULL == ProcessName || strlen(ProcessName) == 0)
 	{
-		DbgPrint("PocIsUnauthorizedProcess->ProcessName is NULL.\n");
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocIsUnauthorizedProcess->ProcessName is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
+	
 
-	if (strncmp(ProcessName, "notepad++.exe", strlen("notepad++.exe")) == 0/* ||
-		strncmp(ProcessName, "notepad.exe", strlen("notepad.exe")) == 0*/)
 	{
-		return POC_IS_UNAUTHORIZED_PROCESS;
-	}
-	else
-	{
-		return POC_IS_AUTHORIZED_PROCESS;
-	}
+		const char** p = authorized_process;
+		while (*p)
+		{
+			if (strncmp(ProcessName, *p, strlen(*p)) == 0)
+			{
+				break;
+			}
+			p++;
+		}
+		if (*p)
+		{
+			//PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocIsUnauthorizedProcess:: Auth:: %s\n", ProcessName));
+			return POC_IS_AUTHORIZED_PROCESS;
+		}
+		else
+		{
+			//PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocIsUnauthorizedProcess:: UnAuth:: %s\n", ProcessName));
+			// return POC_IS_AUTHORIZED_PROCESS;
 
+			return POC_IS_UNAUTHORIZED_PROCESS;
+		}
+	}
+	
+	//if (strncmp(ProcessName, "notepad++.exe", strlen("notepad++.exe")) == 0/* ||
+	//	strncmp(ProcessName, "notepad.exe", strlen("notepad.exe")) == 0*/)
+	//{
+	//	return POC_IS_UNAUTHORIZED_PROCESS;
+	//}
+	//else
+	//{
+	//	return POC_IS_AUTHORIZED_PROCESS;
+	//}
+	
 }
 
 
@@ -321,7 +352,7 @@ NTSTATUS PocQuerySymbolicLink(
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject failed. Status = 0x%x.\n", Status));
 		Status = STATUS_UNSUCCESSFUL;
 		goto EXIT;
 	}
@@ -343,7 +374,7 @@ NTSTATUS PocQuerySymbolicLink(
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject failed. Status = 0x%x.\n", Status));
 		ExFreePoolWithTag(LinkTarget->Buffer, DOS_NAME_BUFFER_TAG);
 	}
 

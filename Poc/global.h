@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include <fltKernel.h>
 
 #define READ_BUFFER_TAG					'rbtg'
@@ -34,3 +35,15 @@
 #define POC_ENCRYPTION_HEADER_EA_TYPE	"AES-128 ECB"
 
 extern PFLT_FILTER gFilterHandle;
+
+#define PTDBG_TRACE_ROUTINES            0x00000001
+#define PTDBG_TRACE_OPERATION_STATUS    0x00000002
+
+const static ULONG gTraceFlags = 0;
+
+
+#define PT_DBG_PRINT( _dbgLevel, _string )          \
+    (FlagOn(gTraceFlags,(_dbgLevel)) ?              \
+        DbgPrint _string :                          \
+        ((int)0))
+

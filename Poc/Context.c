@@ -4,12 +4,10 @@
 #include "fileobject.h"
 #include "cipher.h"
 
-
 NTSTATUS
 PocCreateStreamContext(
     _In_ PFLT_FILTER FilterHandle,
-    _Outptr_ PPOC_STREAM_CONTEXT* StreamContext
-)
+    _Outptr_ PPOC_STREAM_CONTEXT *StreamContext)
 /*++
 
 Routine Description:
@@ -34,23 +32,23 @@ Return Value:
     //  Allocate a stream context
     //
 
-    //DbgPrint("[PocCreateStreamContext]: Allocating stream context \n");
+    // PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocCreateStreamContext]: Allocating stream context \n"));
 
     status = FltAllocateContext(FilterHandle,
-        FLT_STREAM_CONTEXT,
-        POC_STREAM_CONTEXT_SIZE,
-        NonPagedPool,
-        &streamContext);
+                                FLT_STREAM_CONTEXT,
+                                POC_STREAM_CONTEXT_SIZE,
+                                NonPagedPool,
+                                &streamContext);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
 
-        DbgPrint("[PocCreateStreamContext]: Failed to allocate stream context with status 0x%x \n",
-            status);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocCreateStreamContext]: Failed to allocate stream context with status 0x%x \n",
+            status));
         return status;
     }
 
     RtlZeroMemory(streamContext, POC_STREAM_CONTEXT_SIZE);
-
 
     streamContext->FileName = ExAllocatePoolWithTag(NonPagedPool, POC_MAX_NAME_LENGTH, POC_STREAM_CONTEXT_TAG);
 
@@ -62,10 +60,9 @@ Return Value:
 
     RtlZeroMemory(streamContext->FileName, POC_MAX_NAME_LENGTH);
 
-
     streamContext->ShadowSectionObjectPointers = ExAllocatePoolWithTag(NonPagedPool,
-        sizeof(SECTION_OBJECT_POINTERS),
-        POC_STREAM_CONTEXT_TAG);
+                                                                       sizeof(SECTION_OBJECT_POINTERS),
+                                                                       POC_STREAM_CONTEXT_TAG);
 
     if (streamContext->ShadowSectionObjectPointers == NULL)
     {
@@ -75,10 +72,9 @@ Return Value:
 
     RtlZeroMemory(streamContext->ShadowSectionObjectPointers, sizeof(SECTION_OBJECT_POINTERS));
 
-
-    streamContext->PageNextToLastForWrite.Buffer= ExAllocatePoolWithTag(NonPagedPool,
-        PAGE_SIZE + AES_BLOCK_SIZE,
-        POC_STREAM_CONTEXT_TAG);
+    streamContext->PageNextToLastForWrite.Buffer = ExAllocatePoolWithTag(NonPagedPool,
+                                                                         PAGE_SIZE + AES_BLOCK_SIZE,
+                                                                         POC_STREAM_CONTEXT_TAG);
 
     if (streamContext->PageNextToLastForWrite.Buffer == NULL)
     {
@@ -88,12 +84,12 @@ Return Value:
 
     RtlZeroMemory(streamContext->PageNextToLastForWrite.Buffer, PAGE_SIZE + AES_BLOCK_SIZE);
 
-
     streamContext->Resource = ExAllocatePoolWithTag(NonPagedPool,
-        sizeof(ERESOURCE),
-        POC_RESOURCE_TAG);
+                                                    sizeof(ERESOURCE),
+                                                    POC_RESOURCE_TAG);
 
-    if (streamContext->Resource == NULL) {
+    if (streamContext->Resource == NULL)
+    {
 
         FltReleaseContext(streamContext);
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -101,21 +97,18 @@ Return Value:
 
     ExInitializeResourceLite(streamContext->Resource);
 
-
     *StreamContext = streamContext;
 
     return STATUS_SUCCESS;
 }
-
 
 NTSTATUS
 PocFindOrCreateStreamContext(
     IN PFLT_INSTANCE Instance,
     IN PFILE_OBJECT FileObject,
     _In_ BOOLEAN CreateIfNotFound,
-    _Outptr_ PPOC_STREAM_CONTEXT* StreamContext,
-    _Out_opt_ PBOOLEAN ContextCreated
-)
+    _Outptr_ PPOC_STREAM_CONTEXT *StreamContext,
+    _Out_opt_ PBOOLEAN ContextCreated)
 /*++
 
 Routine Description:
@@ -142,21 +135,21 @@ Return Value:
     PPOC_STREAM_CONTEXT streamContext;
     PPOC_STREAM_CONTEXT oldStreamContext;
 
-
     *StreamContext = NULL;
-    if (ContextCreated != NULL) *ContextCreated = FALSE;
+    if (ContextCreated != NULL)
+        *ContextCreated = FALSE;
 
     //
     //  First try to get the stream context.
     //
 
-    /*DbgPrint("[Ctx]: Trying to get stream context (FileObject = %p, Instance = %p)\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[Ctx]: Trying to get stream context (FileObject = %p, Instance = %p)\n",
             Cbd->Iopb->TargetFileObject,
-            Cbd->Iopb->TargetInstance);*/
+            Cbd->Iopb->TargetInstance));*/
 
     status = FltGetStreamContext(Instance,
-        FileObject,
-        &streamContext);
+                                 FileObject,
+                                 &streamContext);
 
     //
     //  If the call failed because the context does not exist
@@ -166,51 +159,52 @@ Return Value:
 
     if (!NT_SUCCESS(status) &&
         (status == STATUS_NOT_FOUND) &&
-        CreateIfNotFound) {
-
+        CreateIfNotFound)
+    {
 
         //
         //  Create a stream context
         //
 
-        /*DbgPrint("[PocFindOrCreateStreamContext]: Creating stream context (FileObject = %p, Instance = %p)\n",
+        /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Creating stream context (FileObject = %p, Instance = %p)\n",
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);*/
+                Cbd->Iopb->TargetInstance));*/
 
-        status = PocCreateStreamContext(gFilterHandle , &streamContext);
+        status = PocCreateStreamContext(gFilterHandle, &streamContext);
 
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS(status))
+        {
 
-            DbgPrint("[Ctx]: Failed to create stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[Ctx]: Failed to create stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
                     status,
                     FileObject,
-                    Instance);
+                    Instance));
 
             return status;
         }
-
 
         //
         //  Set the new context we just allocated on the file object
         //
 
-        /*DbgPrint("[PocFindOrCreateStreamContext]: Setting stream context %p (FileObject = %p, Instance = %p)\n",
+        /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Setting stream context %p (FileObject = %p, Instance = %p)\n",
                 streamContext,
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);*/
+                Cbd->Iopb->TargetInstance));*/
 
         status = FltSetStreamContext(Instance,
-            FileObject,
-            FLT_SET_CONTEXT_KEEP_IF_EXISTS,
-            streamContext,
-            &oldStreamContext);
+                                     FileObject,
+                                     FLT_SET_CONTEXT_KEEP_IF_EXISTS,
+                                     streamContext,
+                                     &oldStreamContext);
 
-        if (!NT_SUCCESS(status)) {
+        if (!NT_SUCCESS(status))
+        {
 
-            DbgPrint("[PocFindOrCreateStreamContext]: Failed to set stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Failed to set stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
                     status,
                     FileObject,
-                    Instance);
+                    Instance));
             //
             //  We release the context here because FltSetStreamContext failed
             //
@@ -219,25 +213,24 @@ Return Value:
             //  when he is done with the context.
             //
 
-            DbgPrint("[PocFindOrCreateStreamContext]: Releasing stream context %p (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Releasing stream context %p (FileObject = %p, Instance = %p)\n",
                     streamContext,
                     FileObject,
-                    Instance);
+                    Instance));
 
             FltReleaseContext(streamContext);
 
             if (status != STATUS_FLT_CONTEXT_ALREADY_DEFINED) {
-
                 //
                 //  FltSetStreamContext failed for a reason other than the context already
                 //  existing on the stream. So the object now does not have any context set
                 //  on it. So we return failure to the caller.
                 //
 
-                DbgPrint("[PocFindOrCreateStreamContext]: Failed to set stream context with status 0x%x != STATUS_FLT_CONTEXT_ALREADY_DEFINED. (FileObject = %p, Instance = %p)\n",
+                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Failed to set stream context with status 0x%x != STATUS_FLT_CONTEXT_ALREADY_DEFINED. (FileObject = %p, Instance = %p)\n",
                         status,
                         FileObject,
-                        Instance);
+                        Instance));
 
                 return status;
             }
@@ -247,10 +240,10 @@ Return Value:
             //  Use the already set context instead
             //
 
-            DbgPrint("[PocFindOrCreateStreamContext]: Stream context already defined. Retaining old stream context %p (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[PocFindOrCreateStreamContext]: Stream context already defined. Retaining old stream context %p (FileObject = %p, Instance = %p)\n",
                     oldStreamContext,
                     FileObject,
-                    Instance);
+                    Instance));
 
             //
             //  Return the existing context. Note that the new context that we allocated has already been
@@ -259,25 +252,23 @@ Return Value:
 
             streamContext = oldStreamContext;
             status = STATUS_SUCCESS;
-
         }
-        else {
+        else
+        {
 
-            if (ContextCreated != NULL) *ContextCreated = TRUE;
+            if (ContextCreated != NULL)
+                *ContextCreated = TRUE;
         }
     }
-
 
     *StreamContext = streamContext;
 
     return status;
 }
 
-
 NTSTATUS
 PocCreateStreamHandleContext(
-    _Outptr_ PPOC_STREAMHANDLE_CONTEXT* StreamHandleContext
-)
+    _Outptr_ PPOC_STREAMHANDLE_CONTEXT *StreamHandleContext)
 /*++
 
 Routine Description:
@@ -303,17 +294,17 @@ Return Value:
     //  Allocate a stream context
     //
 
-
     status = FltAllocateContext(gFilterHandle,
-        FLT_STREAMHANDLE_CONTEXT,
-        POC_STREAMHANDLE_CONTEXT_SIZE,
-        PagedPool,
-        &streamHandleContext);
+                                FLT_STREAMHANDLE_CONTEXT,
+                                POC_STREAMHANDLE_CONTEXT_SIZE,
+                                PagedPool,
+                                &streamHandleContext);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
 
-        DbgPrint("PocCreateStreamHandleContext->Failed to allocate stream handle context with status 0x%x \n",
-            status);
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateStreamHandleContext->Failed to allocate stream handle context with status 0x%x \n",
+            status));
 
         return status;
     }
@@ -324,20 +315,17 @@ Return Value:
 
     RtlZeroMemory(streamHandleContext, POC_STREAMHANDLE_CONTEXT_SIZE);
 
-
     *StreamHandleContext = streamHandleContext;
 
     return STATUS_SUCCESS;
 }
 
-
 NTSTATUS
 PocCreateOrReplaceStreamHandleContext(
     _In_ PFLT_CALLBACK_DATA Cbd,
     _In_ BOOLEAN ReplaceIfExists,
-    _Outptr_ PPOC_STREAMHANDLE_CONTEXT* StreamHandleContext,
-    _Out_opt_ PBOOLEAN ContextReplaced
-)
+    _Outptr_ PPOC_STREAMHANDLE_CONTEXT *StreamHandleContext,
+    _Out_opt_ PBOOLEAN ContextReplaced)
 /*++
 
 Routine Description:
@@ -368,24 +356,26 @@ Return Value:
     PAGED_CODE();
 
     *StreamHandleContext = NULL;
-    if (ContextReplaced != NULL) *ContextReplaced = FALSE;
+    if (ContextReplaced != NULL)
+        *ContextReplaced = FALSE;
 
     //
     //  Create a stream context
     //
 
-    /*DbgPrint("PocCreateOrReplaceStreamHandleContext->Creating stream handle context (FileObject = %p, Instance = %p)\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Creating stream handle context (FileObject = %p, Instance = %p)\n",
             Cbd->Iopb->TargetFileObject,
-            Cbd->Iopb->TargetInstance);*/
+            Cbd->Iopb->TargetInstance));*/
 
     status = PocCreateStreamHandleContext(&streamHandleContext);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
 
-        DbgPrint("PocCreateOrReplaceStreamHandleContext->Failed to create stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
+        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Failed to create stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
                 status,
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);
+                Cbd->Iopb->TargetInstance));
 
         return status;
     }
@@ -394,24 +384,25 @@ Return Value:
     //  Set the new context we just allocated on the file object
     //
 
-    /*DbgPrint("[Ctx]: Setting stream context %p (FileObject = %p, Instance = %p, ReplaceIfExists = %x)\n",
+    /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("[Ctx]: Setting stream context %p (FileObject = %p, Instance = %p, ReplaceIfExists = %x)\n",
             streamHandleContext,
             Cbd->Iopb->TargetFileObject,
             Cbd->Iopb->TargetInstance,
             ReplaceIfExists);*/
 
     status = FltSetStreamHandleContext(Cbd->Iopb->TargetInstance,
-        Cbd->Iopb->TargetFileObject,
-        ReplaceIfExists ? FLT_SET_CONTEXT_REPLACE_IF_EXISTS : FLT_SET_CONTEXT_KEEP_IF_EXISTS,
-        streamHandleContext,
-        &oldStreamHandleContext);
+                                       Cbd->Iopb->TargetFileObject,
+                                       ReplaceIfExists ? FLT_SET_CONTEXT_REPLACE_IF_EXISTS : FLT_SET_CONTEXT_KEEP_IF_EXISTS,
+                                       streamHandleContext,
+                                       &oldStreamHandleContext);
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
 
-        /*DbgPrint("PocCreateOrReplaceStreamHandleContext->Failed to set stream handle context with status 0x%x. (FileObject = %p, Instance = %p)\n",
+        /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Failed to set stream handle context with status 0x%x. (FileObject = %p, Instance = %p)\n",
                 status,
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);*/
+                Cbd->Iopb->TargetInstance));*/
 
         //
         //  We release the context here because FltSetStreamContext failed
@@ -421,14 +412,15 @@ Return Value:
         //  when he is done with the context.
         //
 
-        /*DbgPrint("PocCreateOrReplaceStreamHandleContext->Releasing stream handle context %p (FileObject = %p, Instance = %p)\n",
+        /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Releasing stream handle context %p (FileObject = %p, Instance = %p)\n",
                 streamHandleContext,
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);*/
+                Cbd->Iopb->TargetInstance));*/
 
         FltReleaseContext(streamHandleContext);
 
-        if (status != STATUS_FLT_CONTEXT_ALREADY_DEFINED) {
+        if (status != STATUS_FLT_CONTEXT_ALREADY_DEFINED)
+        {
 
             //
             //  FltSetStreamContext failed for a reason other than the context already
@@ -436,10 +428,10 @@ Return Value:
             //  on it. So we return failure to the caller.
             //
 
-            DbgPrint("PocCreateOrReplaceStreamHandleContext->Failed to set stream context with status 0x%x != STATUS_FLT_CONTEXT_ALREADY_DEFINED. (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Failed to set stream context with status 0x%x != STATUS_FLT_CONTEXT_ALREADY_DEFINED. (FileObject = %p, Instance = %p)\n",
                     status,
                     Cbd->Iopb->TargetFileObject,
-                    Cbd->Iopb->TargetInstance);
+                    Cbd->Iopb->TargetInstance));
 
             return status;
         }
@@ -456,10 +448,10 @@ Return Value:
         //  Use the already set context instead
         //
 
-        /*DbgPrint("PocCreateOrReplaceStreamHandleContext->Stream context already defined. Retaining old stream context %p (FileObject = %p, Instance = %p)\n",
+        /*PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Stream context already defined. Retaining old stream context %p (FileObject = %p, Instance = %p)\n",
                 oldStreamHandleContext,
                 Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance);*/
+                Cbd->Iopb->TargetInstance));*/
 
         //
         //  Return the existing context. Note that the new context that we allocated has already been
@@ -468,9 +460,9 @@ Return Value:
 
         streamHandleContext = oldStreamHandleContext;
         status = STATUS_SUCCESS;
-
     }
-    else {
+    else
+    {
 
         //
         //  FltSetStreamContext has suceeded. The new context will be returned
@@ -485,12 +477,13 @@ Return Value:
         //
 
         if (ReplaceIfExists &&
-            oldStreamHandleContext != NULL) {
+            oldStreamHandleContext != NULL)
+        {
 
-            DbgPrint("PocCreateOrReplaceStreamHandleContext->Releasing old stream handle context %p (FileObject = %p, Instance = %p)\n",
+            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocCreateOrReplaceStreamHandleContext->Releasing old stream handle context %p (FileObject = %p, Instance = %p)\n",
                     oldStreamHandleContext,
                     Cbd->Iopb->TargetFileObject,
-                    Cbd->Iopb->TargetInstance);
+                    Cbd->Iopb->TargetInstance));
 
             FltReleaseContext(oldStreamHandleContext);
             if (ContextReplaced != NULL) *ContextReplaced = TRUE;
@@ -502,19 +495,17 @@ Return Value:
     return status;
 }
 
-
-VOID
-PocContextCleanup(
+VOID PocContextCleanup(
     _In_ PFLT_CONTEXT Context,
-    _In_ FLT_CONTEXT_TYPE ContextType
-)
+    _In_ FLT_CONTEXT_TYPE ContextType)
 {
 
     PPOC_STREAM_CONTEXT streamContext;
 
     PAGED_CODE();
 
-    switch (ContextType) {
+    switch (ContextType)
+    {
 
     case FLT_STREAM_CONTEXT:
     {
@@ -556,25 +547,22 @@ PocContextCleanup(
     {
         break;
     }
-
     }
-
 }
 
-
 NTSTATUS PocUpdateNameInStreamContext(
-    IN PPOC_STREAM_CONTEXT StreamContext, 
+    IN PPOC_STREAM_CONTEXT StreamContext,
     IN PWCHAR NewFileName)
 {
     if (NULL == StreamContext)
     {
-        DbgPrint("PocUpdateNameInStreamContext->StreamContext is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocUpdateNameInStreamContext->StreamContext is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
     if (NULL == NewFileName)
     {
-        DbgPrint("PocUpdateNameInStreamContext->NewFileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocUpdateNameInStreamContext->NewFileName is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -585,10 +573,8 @@ NTSTATUS PocUpdateNameInStreamContext(
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-
     return STATUS_SUCCESS;
 }
-
 
 VOID PocUpdateFlagInStreamContext(
     IN PPOC_STREAM_CONTEXT StreamContext,
@@ -596,7 +582,7 @@ VOID PocUpdateFlagInStreamContext(
 {
     if (NULL == StreamContext)
     {
-        DbgPrint("PocUpdateFlagInStreamContext->StreamContext is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocUpdateFlagInStreamContext->StreamContext is NULL.\n"));
         return;
     }
 
@@ -605,5 +591,4 @@ VOID PocUpdateFlagInStreamContext(
     StreamContext->Flag = Flag;
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-
 }

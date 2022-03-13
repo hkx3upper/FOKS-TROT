@@ -22,7 +22,7 @@ NTSTATUS PocConnectNotifyCallback(
 
 	PAGED_CODE();
 
-	DbgPrint("PocConnectNotifyCallback->connect with user.\n");
+	PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocConnectNotifyCallback->connect with user.\n"));
 
 	gClientPort = ClientPort;
 
@@ -38,7 +38,7 @@ VOID PocDisconnectNotifyCallback(
 
 	PAGED_CODE();
 
-	DbgPrint("PocDisconnectNotifyCallback->disconnect with user.\n");
+	PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocDisconnectNotifyCallback->disconnect with user.\n"));
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
@@ -78,7 +78,7 @@ NTSTATUS PocMessageNotifyCallback(
 			{
 			case POC_HELLO_KERNEL:
 			{
-				DbgPrint("%s", (Buffer + sizeof(POC_MESSAGE_HEADER)));
+				PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("%s", (Buffer + sizeof(POC_MESSAGE_HEADER))));
 				break;
 			}
 			case POC_PRIVILEGE_ENCRYPT:
@@ -115,7 +115,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
+					PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status));
 					goto EXIT;
 				}
 
@@ -140,7 +140,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", Status);
+					PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", Status));
 					goto EXIT;
 				}
 
@@ -151,7 +151,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->PocGetVolumeInstance failed.\n");
+					PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->PocGetVolumeInstance failed.\n"));
 					goto EXIT;
 				}
 
@@ -163,7 +163,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 					if (STATUS_SUCCESS != Status)
 					{
-						DbgPrint("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n");
+						PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
 						goto EXIT;
 					}
 				}
@@ -175,7 +175,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 					if (STATUS_SUCCESS != Status)
 					{
-						DbgPrint("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n");
+						PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
 						goto EXIT;
 					}
 				}
@@ -200,11 +200,11 @@ EXIT:			if (NULL != uDosName.Buffer)
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status);
+					PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status));
 				}
 				else
 				{
-					DbgPrint("PocMessageNotifyCallback->FltSendMessage success.\n");
+					PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocMessageNotifyCallback->FltSendMessage success.\n"));
 				}
 
 				break;
@@ -240,7 +240,7 @@ NTSTATUS PocInitCommPort()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitCommPort->FltBuildDefaultSecurityDescriptor failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitCommPort->FltBuildDefaultSecurityDescriptor failed. Status = 0x%x\n", Status));
 		return Status;
 	}
 
@@ -268,7 +268,7 @@ NTSTATUS PocInitCommPort()
 	if (!NT_SUCCESS(Status))
 	{
 		FltCloseCommunicationPort(gServerPort);
-		DbgPrint("PocInitCommPort->FltCreateCommunicationPort failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocInitCommPort->FltCreateCommunicationPort failed. Status = 0x%x.\n", Status));
 		return Status;
 	}
 
