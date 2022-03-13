@@ -7,13 +7,11 @@
 #include "cipher.h"
 #include "filefuncs.h"
 
-
 FLT_PREOP_CALLBACK_STATUS
 PocPreReadOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -21,7 +19,7 @@ PocPreReadOperation(
 
     NTSTATUS Status;
 
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    CHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
@@ -41,16 +39,13 @@ PocPreReadOperation(
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
 
-
     if (0 == ByteCount)
     {
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
-
     Status = PocGetProcessName(Data, ProcessName);
-
 
     Status = PocFindOrCreateStreamContext(
         Data->Iopb->TargetInstance,
@@ -61,34 +56,32 @@ PocPreReadOperation(
 
     if (STATUS_SUCCESS != Status)
     {
-        if (STATUS_NOT_FOUND != Status)      //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n",
-                Status, ProcessName));
+        if (STATUS_NOT_FOUND != Status) //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s\n",
+                                                     Status, ProcessName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
     if (!StreamContext->IsCipherText)
     {
-        //PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->leave. File is plaintext.\n"));
+        // PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->leave. File is plaintext.\n"));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
-    
-    //PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreReadOperation->enter StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
-    //    Data->Iopb->Parameters.Read.ByteOffset.LowPart,
-    //    Data->Iopb->Parameters.Read.Length,
-    //    ProcessName, StreamContext->FileName,
-    //    NonCachedIo,
-    //    PagingIo);
-    
+    // PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("\nPocPreReadOperation->enter StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //     Data->Iopb->Parameters.Read.ByteOffset.LowPart,
+    //     Data->Iopb->Parameters.Read.Length,
+    //     ProcessName, StreamContext->FileName,
+    //     NonCachedIo,
+    //     PagingIo);
 
     StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
 
     if (StartingVbo >= StreamContext->FileSize)
     {
-        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->%s read end of file.\n", ProcessName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%s read end of file.\n", ProcessName));
         Data->IoStatus.Status = STATUS_END_OF_FILE;
         Data->IoStatus.Information = 0;
 
@@ -98,8 +91,8 @@ PocPreReadOperation(
 
     if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
     {
-        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->%s cachedio read end of file Length = %d.\n", 
-            ProcessName, Data->Iopb->Parameters.Read.Length));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%s cachedio read end of file Length = %d.\n",
+                                                 ProcessName, Data->Iopb->Parameters.Read.Length));
         Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
         FltSetCallbackDataDirty(Data);
     }
@@ -108,7 +101,7 @@ PocPreReadOperation(
 
     if (NULL == SwapBufferContext)
     {
-        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
         Data->IoStatus.Information = 0;
         Status = FLT_PREOP_COMPLETE;
@@ -117,8 +110,7 @@ PocPreReadOperation(
 
     RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
 
-    if (FltObjects->FileObject->SectionObjectPointer
-        == StreamContext->ShadowSectionObjectPointers)
+    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
     {
         SwapBufferContext->StreamContext = StreamContext;
         *CompletionContext = SwapBufferContext;
@@ -126,14 +118,13 @@ PocPreReadOperation(
         goto EXIT;
     }
 
-
     if (NonCachedIo && StreamContext->IsCipherText)
     {
         NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, ByteCount, READ_BUFFER_TAG);
 
         if (NULL == NewBuffer)
         {
-            PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
             Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
             Data->IoStatus.Information = 0;
             Status = FLT_PREOP_COMPLETE;
@@ -142,7 +133,6 @@ PocPreReadOperation(
 
         RtlZeroMemory(NewBuffer, ByteCount);
 
-
         if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
         {
 
@@ -150,7 +140,7 @@ PocPreReadOperation(
 
             if (NewMdl == NULL)
             {
-                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
                 Status = FLT_PREOP_COMPLETE;
@@ -173,7 +163,6 @@ PocPreReadOperation(
         goto EXIT;
     }
 
-        
     SwapBufferContext->StreamContext = StreamContext;
     *CompletionContext = SwapBufferContext;
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -210,14 +199,12 @@ EXIT:
     return Status;
 }
 
-
 FLT_POSTOP_CALLBACK_STATUS
 PocPostReadOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-)
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -238,7 +225,7 @@ PocPostReadOperation(
     PCHAR OrigBuffer = NULL, NewBuffer = NULL;
     PMDL NewMdl = NULL;
 
-    LARGE_INTEGER byteOffset = { 0 };
+    LARGE_INTEGER byteOffset = {0};
     ULONG readLength = 0;
     PCHAR outReadBuffer = NULL;
     ULONG bytesRead = 0;
@@ -248,7 +235,7 @@ PocPostReadOperation(
 
     PPOC_VOLUME_CONTEXT VolumeContext = NULL;
 
-    CHAR ProcessName[260] = { 0 };
+    CHAR ProcessName[260] = {0};
 
     SwapBufferContext = CompletionContext;
     StreamContext = SwapBufferContext->StreamContext;
@@ -258,7 +245,6 @@ PocPostReadOperation(
 
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
-
 
     if (STATUS_SUCCESS == Data->IoStatus.Status)
     {
@@ -273,16 +259,12 @@ PocPostReadOperation(
         goto EXIT;
     }
 
-
-
-    if (FltObjects->FileObject->SectionObjectPointer 
-        == StreamContext->ShadowSectionObjectPointers)
+    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
     {
-        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
         Status = FLT_POSTOP_FINISHED_PROCESSING;
         goto EXIT;
     }
-
 
     if (NonCachedIo && StreamContext->IsCipherText)
     {
@@ -291,30 +273,28 @@ PocPostReadOperation(
         NewBuffer = SwapBufferContext->NewBuffer;
         NewMdl = SwapBufferContext->NewMdl;
 
-        if (Data->Iopb->Parameters.Read.MdlAddress != NULL) 
+        if (Data->Iopb->Parameters.Read.MdlAddress != NULL)
         {
 
             FLT_ASSERT(((PMDL)Data->Iopb->Parameters.Read.MdlAddress)->Next == NULL);
 
             OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
-                NormalPagePriority | MdlMappingNoExecute);
+                                                      NormalPagePriority | MdlMappingNoExecute);
 
-            if (OrigBuffer == NULL) 
+            if (OrigBuffer == NULL)
             {
 
-                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->Failed to get system address for MDL1: %p\n",
-                    Data->Iopb->Parameters.Read.MdlAddress));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Failed to get system address for MDL1: %p\n",
+                                                           Data->Iopb->Parameters.Read.MdlAddress));
 
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
-
             }
-
         }
         else if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_SYSTEM_BUFFER) ||
-            FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION)) 
+                 FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
         {
             OrigBuffer = Data->Iopb->Parameters.Read.ReadBuffer;
         }
@@ -326,7 +306,7 @@ PocPostReadOperation(
 
             if (STATUS_SUCCESS != Status)
             {
-                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->FltLockUserBuffer failed. Status = 0x%X.\n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->FltLockUserBuffer failed. Status = 0x%X.\n"));
                 Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                 Data->IoStatus.Information = 0;
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -334,22 +314,19 @@ PocPostReadOperation(
             }
 
             OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
-                NormalPagePriority | MdlMappingNoExecute);
+                                                      NormalPagePriority | MdlMappingNoExecute);
 
             if (OrigBuffer == NULL)
             {
-                PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->Failed to get system address for MDL2: %p\n",
-                    Data->Iopb->Parameters.Read.MdlAddress));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Failed to get system address for MDL2: %p\n",
+                                                           Data->Iopb->Parameters.Read.MdlAddress));
 
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
-
             }
-
         }
-
 
         try
         {
@@ -357,18 +334,17 @@ PocPostReadOperation(
             if (FileSize < AES_BLOCK_SIZE)
             {
                 /*
-                * 文件小于一个块，采用流式解密
-                */
+                 * 文件小于一个块，采用流式解密
+                 */
                 PocStreamModeDecrypt(NewBuffer, LengthReturned, OrigBuffer);
-
             }
-            else if ((FileSize > StartingVbo + LengthReturned) && 
-                    (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
+            else if ((FileSize > StartingVbo + LengthReturned) &&
+                     (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
             {
                 /*
-                * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
-                * 最后一次读的数据小于一个块的情况下，现在在倒数第二个块做一下处理
-                */
+                 * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
+                 * 最后一次读的数据小于一个块的情况下，现在在倒数第二个块做一下处理
+                 */
 
                 byteOffset.LowPart = StartingVbo + LengthReturned;
                 readLength = AES_BLOCK_SIZE;
@@ -384,7 +360,7 @@ PocPostReadOperation(
 
                 if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocReadFileNoCache1 failed. Status = 0x%x\n", Status));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocReadFileNoCache1 failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -397,7 +373,7 @@ PocPostReadOperation(
 
                 if (NULL == TempNewBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -406,11 +382,11 @@ PocPostReadOperation(
 
                 RtlZeroMemory(TempNewBuffer, LengthReturned + bytesRead);
 
-                TempOrigBuffer= ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempOrigBuffer = ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempOrigBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -419,7 +395,6 @@ PocPostReadOperation(
 
                 RtlZeroMemory(TempOrigBuffer, LengthReturned + bytesRead);
 
-
                 RtlMoveMemory(TempNewBuffer, NewBuffer, LengthReturned);
                 RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, bytesRead);
 
@@ -427,7 +402,7 @@ PocPostReadOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing1 failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing1 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -435,21 +410,20 @@ PocPostReadOperation(
                 }
 
                 RtlMoveMemory(OrigBuffer, TempOrigBuffer, LengthReturned);
-
             }
-            else if (FileSize > AES_BLOCK_SIZE && 
-                    LengthReturned < AES_BLOCK_SIZE)
+            else if (FileSize > AES_BLOCK_SIZE &&
+                     LengthReturned < AES_BLOCK_SIZE)
             {
                 /*
-                * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
-                * 最后一次读的数据小于一个块时
-                */
+                 * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
+                 * 最后一次读的数据小于一个块时
+                 */
 
                 Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
 
                 if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -476,7 +450,7 @@ PocPostReadOperation(
 
                 if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocReadFileNoCache2 failed. Status = 0x%x\n", Status));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocReadFileNoCache2 failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -489,7 +463,7 @@ PocPostReadOperation(
 
                 if (NULL == TempNewBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -502,7 +476,7 @@ PocPostReadOperation(
 
                 if (NULL == TempOrigBuffer)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -518,7 +492,7 @@ PocPostReadOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -526,46 +500,41 @@ PocPostReadOperation(
                 }
 
                 RtlMoveMemory(OrigBuffer, TempOrigBuffer + bytesRead, LengthReturned);
-
             }
             else if (LengthReturned % AES_BLOCK_SIZE != 0)
             {
                 /*
-                * 当需要读的数据大于一个块时，且和块大小不对齐时，这里用密文挪用的方式，不需要修改文件大小
-                */
+                 * 当需要读的数据大于一个块时，且和块大小不对齐时，这里用密文挪用的方式，不需要修改文件大小
+                 */
 
                 Status = PocAesECBDecrypt_CiphertextStealing(NewBuffer, LengthReturned, OrigBuffer);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
                     goto EXIT;
                 }
-
             }
             else
             {
                 /*
-                * 当需要读的数据本身就和块大小对齐时，直接解密
-                */
+                 * 当需要读的数据本身就和块大小对齐时，直接解密
+                 */
 
                 Status = PocAesECBDecrypt(NewBuffer, LengthReturned, OrigBuffer, &LengthReturned);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->PocAesECBDecrypt failed.\n"));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
                     goto EXIT;
                 }
-
             }
-
-
         }
         except(EXCEPTION_EXECUTE_HANDLER)
         {
@@ -575,16 +544,34 @@ PocPostReadOperation(
             goto EXIT;
         }
 
-
         Status = PocGetProcessName(Data, ProcessName);
 
-        PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n\n",
-            StartingVbo,
-            LengthReturned,
-            ProcessName, 
-            StreamContext->FileName));
-
-       
+        // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %s File = %ws.\n\n",
+        //                                      StartingVbo,
+        //                                      LengthReturned,
+        //                                      ProcessName,
+        //                                      StreamContext->FileName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %s\n",
+                                                   StartingVbo,
+                                                   LengthReturned,
+                                                   ProcessName));
+        if(NULL != StreamContext)
+        {
+            if(NULL != StreamContext->FileName)
+            {
+                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = %ws\n", StreamContext->FileName));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName address is \n"));
+                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%p\n", StreamContext->FileName));
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = NULL\n"));
+            }
+        }
+        else
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("StreamContext = NULL\n"));
+        }
     }
 
     Status = FLT_POSTOP_FINISHED_PROCESSING;
