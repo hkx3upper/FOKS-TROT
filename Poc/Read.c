@@ -560,17 +560,17 @@ PocPostReadOperation(
             if(NULL != StreamContext->FileName)
             {
                 // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = %ws\n", StreamContext->FileName));
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName address is \n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, FileName address is 0x%016x\n", __FUNCTION__,StreamContext->FileName));
                 // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%p\n", StreamContext->FileName));
             }
             else
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = NULL\n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s,FileName = NULL\n",__FUNCTION__));
             }
         }
         else
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("StreamContext = NULL\n"));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, StreamContext = NULL\n", __FUNCTION__));
         }
     }
 
