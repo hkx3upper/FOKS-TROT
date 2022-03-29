@@ -15,6 +15,7 @@
 4.Write和Read使用SwapBuffers的方式进行透明加密解密；  
 5.特权加密和特权解密使用重入（Reentry）的方式，使驱动加密解密文件；  
 6.解决FileRenameInformationEx和FileRenameInformation问题，因此可以自动加密解密docx，doc，pptx，ppt，xlsx，xls等使用tmp文件重命名方式读写的文件；  
+7.注册进程相关回调，使用链表统一管理授权与非授权进程；注册进程与线程对象回调，保护进程EPROCESS,ETHREAD对象；对授权进程的代码段进行完整性校验。  
 
 ## 编译及使用方法：  
 1.安装CNG库：  
@@ -23,8 +24,12 @@ https://www.microsoft.com/en-us/download/details.aspx?id=30688
 项目->属性的VC++目录的包含目录，库目录设置相应的位置  
 链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
 输入->附加依赖项一定要设置为ksecdd.lib  
-2.在Utils.c-> PocBypassIrrelevantFileExtension设置要过滤的文件扩展名，->PocIsUnauthorizedProcess设置非授权进程  
-3.使用Visual Studio 2019编译Debug x64驱动，编译User和UserDll  
-4.建议在Windows 10 x64，NTFS环境运行（这里主要是FltFlushBuffers2只支持NTFS），
+2.在Utils.c-> PocBypassIrrelevantFileExtension设置要过滤的文件扩展名，Process.c->PocIsUnauthorizedProcess设置非授权进程  
+3.使用Visual Studio 2019编译Debug x64驱动，编译User、UserDll和UserPanel  
+4.建议在Windows 10 x64，NTFS环境运行（这里主要是FltFlushBuffers2的IRP_MN_FLUSH_AND_PURGE只支持NTFS），
+
+##贡献者：  
+hkx3upper: https://github.com/hkx3upper  
+wangzhankun: https://github.com/wangzhankun  
 
 # 其他实现细节在开发文档.pdf中

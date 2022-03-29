@@ -18,7 +18,15 @@ DWORD WINAPI PocGetMessageThread(_In_ LPVOID lpParameter)
 
 	PocUserGetMessage(*hPort, &RetValue);
 
-	sprintf_s(Text, "0x%X", RetValue);
+	if (1 == RetValue)
+	{
+		strncpy_s(Text, "操作成功", strlen("操作成功"));
+	}
+	else
+	{
+		sprintf_s(Text, "操作失败:0x%X", RetValue);
+	}
+
 	MessageBoxA(NULL, Text, "RetValue", MB_OK);
 	
 	return 0;
@@ -26,6 +34,11 @@ DWORD WINAPI PocGetMessageThread(_In_ LPVOID lpParameter)
 
 int main(int argc, char* argv[])
 {
+	if (NULL == argv[1] || NULL == argv[2])
+	{
+		return 1;
+	}
+
 	HANDLE hPort = NULL;
 
 	PocUserInitCommPort(&hPort);

@@ -17,6 +17,12 @@
       <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
       <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
+    <Filter Include="Header Files\secure">
+      <UniqueIdentifier>{f688f0d8-201c-4d1b-9f53-972e89bfa71a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Secure">
+      <UniqueIdentifier>{fd5b51e3-95a2-4f85-807f-4b7e98c3eb17}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="Poc.inf">
@@ -54,6 +60,15 @@
     <ClCompile Include="CommPort.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Process.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcesSecure.c">
+      <Filter>Source Files\Secure</Filter>
+    </ClCompile>
+    <ClCompile Include="Ldrreloc.c">
+      <Filter>Source Files\Secure</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils.h">
@@ -85,6 +100,18 @@
     </ClInclude>
     <ClInclude Include="commport.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="process.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="import.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="processecure.h">
+      <Filter>Header Files\secure</Filter>
+    </ClInclude>
+    <ClInclude Include="ldrreloc.h">
+      <Filter>Header Files\secure</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

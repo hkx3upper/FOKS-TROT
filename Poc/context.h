@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fltKernel.h>
+#include "global.h"
 
 
 typedef struct _POC_PAGE_TEMP_BUFFER
@@ -33,6 +33,7 @@ typedef struct _POC_STREAM_CONTEXT
 
     BOOLEAN IsCipherText;
 
+    //将倒数第二个扇区大小的块存在StreamContext->PageNextToLastForWrite中
     POC_PAGE_TEMP_BUFFER PageNextToLastForWrite;
 
     PERESOURCE Resource;
@@ -102,6 +103,3 @@ VOID PocUpdateFlagInStreamContext(
     IN PPOC_STREAM_CONTEXT StreamContext,
     IN ULONG Flag);
 
-#pragma alloc_text(PAGE, PocCreateStreamContext)
-#pragma alloc_text(PAGE, PocCreateStreamHandleContext)
-#pragma alloc_text(PAGE, PocContextCleanup)

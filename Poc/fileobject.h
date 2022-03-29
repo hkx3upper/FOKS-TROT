@@ -11,5 +11,5 @@ NTSTATUS PocChangeSectionObjectPointerSafe(
 	IN OUT PFILE_OBJECT FileObject,
 	IN PSECTION_OBJECT_POINTERS SectionObjectPointers);
 
-NTSTATUS PocCleanupShadowSectionObjectPointers(
-	IN PSECTION_OBJECT_POINTERS SectionObjectPointers);
+NTSTATUS PocCleanupSectionObjectPointers(
+	IN PPOC_STREAM_CONTEXT StreamContext);

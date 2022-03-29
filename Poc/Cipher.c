@@ -24,7 +24,7 @@ NTSTATUS PocInitAesECBKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitAesECBKey->BCryptOpenAlgorithmProvider failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitAesECBKey->BCryptOpenAlgorithmProvider failed. Status = 0x%x.\n", Status));
 		goto ERROR;
 	}
 	
@@ -32,7 +32,7 @@ NTSTATUS PocInitAesECBKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitAesECBKey->BCryptGetProperty failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitAesECBKey->BCryptGetProperty failed. Status = 0x%x.\n", Status));
 		goto ERROR;
 	}
 
@@ -40,7 +40,7 @@ NTSTATUS PocInitAesECBKey()
 
 	if (NULL == AesInitVar.pbKeyObject)
 	{
-		DbgPrint("PocInitAesECBKey->ExAllocatePoolWithTag pbKeyObject failed.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitAesECBKey->ExAllocatePoolWithTag pbKeyObject failed.\n"));
 		goto ERROR;
 	}
 
@@ -48,7 +48,7 @@ NTSTATUS PocInitAesECBKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitAesECBKey->BCryptSetProperty failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitAesECBKey->BCryptSetProperty failed. Status = 0x%x.\n", Status));
 		goto ERROR;
 	}
 
@@ -56,7 +56,7 @@ NTSTATUS PocInitAesECBKey()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitAesECBKey->BCryptGenerateSymmetricKey failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitAesECBKey->BCryptGenerateSymmetricKey failed. Status = 0x%x.\n", Status));
 		goto ERROR;
 	}
 
@@ -131,19 +131,19 @@ NTSTATUS PocAesECBEncrypt(
 
 	if (!AesInitVar.Flag)
 	{
-		DbgPrint("PocAesECBEncrypt->AesInitVar.Flag = FALSE.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt->AesInitVar.Flag = FALSE.\n"));
 		return POC_STATUS_AES_INIT_FAILED;
 	}
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocAesECBEncrypt->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == LengthReturned)
 	{
-		DbgPrint("PocAesECBEncrypt->LengthReturned is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt->LengthReturned is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -156,7 +156,7 @@ NTSTATUS PocAesECBEncrypt(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBEncrypt->BCryptEncrypt encrypt plaintext failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt->BCryptEncrypt encrypt plaintext failed. Status = 0x%x\n", Status));
 	}
 
 	return Status;
@@ -172,19 +172,19 @@ NTSTATUS PocAesECBDecrypt(
 
 	if (!AesInitVar.Flag)
 	{
-		DbgPrint("PocAesECBDecrypt->AesInitVar.Flag = FALSE.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt->AesInitVar.Flag = FALSE.\n"));
 		return POC_STATUS_AES_INIT_FAILED;
 	}
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocAesECBDecrypt->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == LengthReturned)
 	{
-		DbgPrint("PocAesECBDecrypt->LengthReturned is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt->LengthReturned is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -197,7 +197,7 @@ NTSTATUS PocAesECBDecrypt(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBDecrypt->BCryptDecrypt decrypt ciphertext failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt->BCryptDecrypt decrypt ciphertext failed. Status = 0x%x\n", Status));
 	}
 
 	return Status;
@@ -211,25 +211,25 @@ NTSTATUS PocAesECBEncrypt_CiphertextStealing(
 {
 	if (!AesInitVar.Flag)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->AesInitVar.Flag = FALSE.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->AesInitVar.Flag = FALSE.\n"));
 		return POC_STATUS_AES_INIT_FAILED;
 	}
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == InOutBuffer)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->InOutBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->InOutBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (InBufferSize % AES_BLOCK_SIZE == 0 || InBufferSize < AES_BLOCK_SIZE)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->Buffer is aligned with block size.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->Buffer is aligned with block size.\n"));
 		return STATUS_UNSUCCESSFUL;
 	}
 
@@ -250,7 +250,7 @@ NTSTATUS PocAesECBEncrypt_CiphertextStealing(
 
 	if (NULL == AlignedBuffer)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->ExAllocatePoolWithTag AlignedBuffer failed.\\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->ExAllocatePoolWithTag AlignedBuffer failed.\\n"));
 		Status = STATUS_UNSUCCESSFUL;
 		goto EXIT;
 	}
@@ -268,7 +268,7 @@ NTSTATUS PocAesECBEncrypt_CiphertextStealing(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->PocAesECBEncrypt1 failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->PocAesECBEncrypt1 failed. Status = 0x%x\n", Status));
 		goto EXIT;
 	}
 
@@ -296,7 +296,7 @@ NTSTATUS PocAesECBEncrypt_CiphertextStealing(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBEncrypt_CiphertextStealing->PocAesECBEncrypt2 failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBEncrypt_CiphertextStealing->PocAesECBEncrypt2 failed. Status = 0x%x\n", Status));
 		goto EXIT;
 	}
 
@@ -323,25 +323,25 @@ NTSTATUS PocAesECBDecrypt_CiphertextStealing(
 {
 	if (!AesInitVar.Flag)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->AesInitVar.Flag = FALSE.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->AesInitVar.Flag = FALSE.\n"));
 		return POC_STATUS_AES_INIT_FAILED;
 	}
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == InOutBuffer)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->InOutBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->InOutBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (InBufferSize % AES_BLOCK_SIZE == 0 || InBufferSize < AES_BLOCK_SIZE)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->Buffer is aligned with block size.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->Buffer is aligned with block size.\n"));
 		return STATUS_UNSUCCESSFUL;
 	}
 
@@ -362,7 +362,7 @@ NTSTATUS PocAesECBDecrypt_CiphertextStealing(
 
 	if (NULL == AlignedBuffer)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->ExAllocatePoolWithTag AlignedBuffer failed.\\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->ExAllocatePoolWithTag AlignedBuffer failed.\n"));
 		Status = STATUS_UNSUCCESSFUL;
 		goto EXIT;
 	}
@@ -380,7 +380,7 @@ NTSTATUS PocAesECBDecrypt_CiphertextStealing(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->PocAesECBDecrypt1 failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->PocAesECBDecrypt1 failed. Status = 0x%x\n", Status));
 		goto EXIT;
 	}
 
@@ -408,7 +408,7 @@ NTSTATUS PocAesECBDecrypt_CiphertextStealing(
 
 	if (STATUS_SUCCESS != Status)
 	{
-		DbgPrint("PocAesECBDecrypt_CiphertextStealing->PocAesECBDecrypt2 failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAesECBDecrypt_CiphertextStealing->PocAesECBDecrypt2 failed. Status = 0x%x\n", Status));
 		goto EXIT;
 	}
 
@@ -436,13 +436,13 @@ NTSTATUS PocStreamModeEncrypt(
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocStreamModeEncrypt->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeEncrypt->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == InOutBuffer)
 	{
-		DbgPrint("PocStreamModeEncrypt->InOutBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeEncrypt->InOutBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -463,13 +463,13 @@ NTSTATUS PocStreamModeDecrypt(
 
 	if (NULL == InBuffer)
 	{
-		DbgPrint("PocStreamModeDecrypt->InBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeDecrypt->InBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == InOutBuffer)
 	{
-		DbgPrint("PocStreamModeDecrypt->InOutBuffer is NULL.\n");
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeDecrypt->InOutBuffer is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -479,4 +479,143 @@ NTSTATUS PocStreamModeDecrypt(
 	}
 
 	return STATUS_SUCCESS;
+}
+
+
+NTSTATUS PocComputeHash(
+	IN PUCHAR Data, 
+	IN ULONG DataLength, 
+	IN OUT PUCHAR* DataDigestPointer, 
+	IN OUT ULONG* DataDigestLengthPointer)
+{
+
+	NTSTATUS Status = 0;
+
+	BCRYPT_ALG_HANDLE HashAlgHandle = NULL;
+	BCRYPT_HASH_HANDLE HashHandle = NULL;
+
+	PUCHAR HashDigest = NULL;
+	ULONG HashDigestLength = 0;
+
+	ULONG ResultLength = 0;
+
+	*DataDigestPointer = NULL;
+	*DataDigestLengthPointer = 0;
+
+
+
+	Status = BCryptOpenAlgorithmProvider(
+		&HashAlgHandle,
+		BCRYPT_SHA256_ALGORITHM,
+		NULL,
+		0);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->BCryptOpenAlgorithmProvider failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+
+
+
+	Status = BCryptGetProperty(
+		HashAlgHandle,
+		BCRYPT_HASH_LENGTH,
+		(PUCHAR)&HashDigestLength,
+		sizeof(HashDigestLength),
+		&ResultLength,
+		0);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->BCryptGetProperty failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+
+	HashDigest = (PUCHAR)ExAllocatePoolWithTag(PagedPool, HashDigestLength, READ_BUFFER_TAG);
+
+	if (NULL == HashDigest)
+	{
+		Status = STATUS_NO_MEMORY;
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->ExAllocatePoolWithTag failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+	RtlZeroMemory(HashDigest, HashDigestLength);
+
+
+
+	Status = BCryptCreateHash(
+		HashAlgHandle,
+		&HashHandle,
+		NULL,
+		0,
+		NULL,
+		0,
+		0);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->BCryptCreateHash failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+
+
+	Status = BCryptHashData(
+		HashHandle,
+		(PUCHAR)Data,
+		DataLength,
+		0);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->BCryptHashData failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+
+
+	Status = BCryptFinishHash(
+		HashHandle,
+		HashDigest,
+		HashDigestLength,
+		0);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->BCryptFinishHash failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto cleanup;
+	}
+
+	*DataDigestPointer = HashDigest;
+	HashDigest = NULL;
+	*DataDigestLengthPointer = HashDigestLength;
+
+	Status = STATUS_SUCCESS;
+
+cleanup:
+
+	if (NULL != HashDigest)
+	{
+		ExFreePool(HashDigest);
+		HashDigest = NULL;
+	}
+
+	if (NULL != HashHandle)
+	{
+		Status = BCryptDestroyHash(HashHandle);
+		HashHandle = NULL;
+	}
+
+	if (NULL != HashAlgHandle)
+	{
+		BCryptCloseAlgorithmProvider(HashAlgHandle, 0);
+		HashAlgHandle = NULL;
+	}
+
+	return Status;
 }

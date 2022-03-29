@@ -3,6 +3,7 @@
 #include "context.h"
 #include "utils.h"
 #include "filefuncs.h"
+#include "process.h"
 
 
 FLT_PREOP_CALLBACK_STATUS
@@ -18,12 +19,10 @@ PocPreQueryInformationOperation(
 
     NTSTATUS Status;
 
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
-
-    Status = PocGetProcessName(Data, ProcessName);
 
 
     Status = PocFindOrCreateStreamContext(
@@ -35,11 +34,32 @@ PocPreQueryInformationOperation(
 
     if (STATUS_SUCCESS != Status)
     {
-        if (STATUS_NOT_FOUND != Status)      //说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            DbgPrint("PocPreQueryInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+        if (STATUS_NOT_FOUND != Status && !FsRtlIsPagingFile(Data->Iopb->TargetFileObject))
+            /*
+            * 说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
+            * 或者是一个Paging file，这里会返回0xc00000bb，
+            * 原因是Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS被清掉了
+            *
+            //
+            //  To make FAT match the present functionality of NTFS, disable
+            //  stream contexts on paging files
+            //
+
+            if (IsPagingFile) {
+                SetFlag( Fcb->Header.Flags2, FSRTL_FLAG2_IS_PAGING_FILE );
+                ClearFlag( Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS );
+            }
+            */
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x\n",
+                __FUNCTION__,
+                Status));
+        }
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
     }
+
+    Status = PocGetProcessName(Data, ProcessName);
 
     if (!StreamContext->IsCipherText)
     {
@@ -54,9 +74,9 @@ PocPreQueryInformationOperation(
     }
 
 
-    /*DbgPrint("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %s File = %ws.\n",
+    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %ws File = %ws.\n",
         Data->Iopb->Parameters.QueryFileInformation.FileInformationClass,
-        ProcessName, StreamContext->FileName);*/
+        ProcessName, StreamContext->FileName));*/
 
     *CompletionContext = StreamContext;
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -96,6 +116,9 @@ PocPostQueryInformationOperation(
     StreamContext = CompletionContext;
     InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
+    /*
+    * StreamContext->FileSize记录着明文的大小，并写入到了标识尾中
+    */
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
 
     case FileStandardInformation:
@@ -193,7 +216,7 @@ PocPostSetInformationOperation(
     HANDLE FileHandle = NULL;
     IO_STATUS_BLOCK IoStatusBlock = { 0 };
 
-    CHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
 
     if (STATUS_SUCCESS != Data->IoStatus.Status)
@@ -228,7 +251,6 @@ PocPostSetInformationOperation(
             }
         }
 
-        Status = PocGetProcessName(Data, ProcessName);
 
         PocParseFileNameExtension(NewFileName, NewFileExtension);
 
@@ -252,36 +274,29 @@ PocPostSetInformationOperation(
 
             if (POC_IRRELEVENT_FILE_EXTENSION == Status || NULL != TargetFileObject)
             {
-                if (NULL != StreamContext)
-                {
-                    FltReleaseContext(StreamContext);
-                    StreamContext = NULL;
-                }
+                PocUpdateFlagInStreamContext(StreamContext, 0);
 
-                Status = FltDeleteStreamContext(Data->Iopb->TargetInstance, Data->Iopb->TargetFileObject, NULL);
+                ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-                if (STATUS_SUCCESS == Status)
-                {
-                    DbgPrint("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws.\n", NewFileName);
-                }
-                else
-                {
-                    DbgPrint("PocPostSetInformationOperation->FltDeleteStreamContext NewFileName = %ws failed. Status = 0x%x.\n", 
-                        NewFileName, Status);
-                }
+                StreamContext->IsCipherText = FALSE;
+                StreamContext->FileSize = 0;
+                RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
 
+                ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Clear StreamContext NewFileName = %ws.\n", __FUNCTION__, NewFileName));
+                
             }
             else
             {
-                DbgPrint("PocPostSetInformationOperation->PocUpdateNameInStreamContext %ws to %ws.\n",
-                    StreamContext->FileName, NewFileName);
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocUpdateNameInStreamContext %ws to %ws.\n",
+                    StreamContext->FileName, NewFileName));
 
                 Status = PocUpdateNameInStreamContext(StreamContext, NewFileName);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->PocUpdateNameInStreamContext failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocUpdateNameInStreamContext failed. Status = 0x%x\n", Status));
                     goto EXIT;
                 }
 
@@ -290,10 +305,10 @@ PocPostSetInformationOperation(
         }
         else if (STATUS_NOT_FOUND == Status)
         {
+
             /*
             * 到这里，说明原来的扩展名不是目标扩展名，所以没有进入PostCreate为其创建StreamContext
             */
-
 
             Status = PocBypassIrrelevantFileExtension(NewFileExtension);
 
@@ -327,7 +342,7 @@ PocPostSetInformationOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->ZwCreateFile failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->ZwCreateFile failed. Status = 0x%x\n", Status));
                     goto EXIT;
                 }
 
@@ -340,7 +355,7 @@ PocPostSetInformationOperation(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
                 }
 
                 if (NULL != StreamContext)
@@ -348,24 +363,29 @@ PocPostSetInformationOperation(
                     if (POC_TAILER_WRONG_FILE_NAME != StreamContext->Flag &&
                         POC_FILE_HAS_ENCRYPTION_TAILER != StreamContext->Flag)
                     {
+                        /*
+                        * 说明是非目标扩展名文件重命名为目标扩展名文件，会设置Flag，并在PostClose中加密
+                        */
                         PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
                     }
 
-                    DbgPrint("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
-                        NewFileName, StreamContext->Flag);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
+                        NewFileName, StreamContext->Flag));
                 }
                 else
                 {
-                    DbgPrint("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws.\n\n",
-                        NewFileName);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws.\n\n",
+                        NewFileName));
                 }
                 
             }
         }
         else
         {
-            DbgPrint("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %s NewFileName = %ws\n",
-                Status, ProcessName, NewFileName);
+            Status = PocGetProcessName(Data, ProcessName);
+
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %ws NewFileName = %ws\n",
+                Status, ProcessName, NewFileName));
         }
 
         break;

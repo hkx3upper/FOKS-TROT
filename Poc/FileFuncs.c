@@ -3,6 +3,7 @@
 #include "context.h"
 #include "global.h"
 #include "utils.h"
+#include "write.h"
 
 POC_ENCRYPTION_HEADER EncryptionHeader = { 0 };
 
@@ -23,13 +24,13 @@ NTSTATUS PocReadFileNoCache(
 
     if (NULL == FileName)
     {
-        DbgPrint("PocReadFileNoCache->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FileName is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
     if (NULL == BytesRead)
     {
-        DbgPrint("PocReadFileNoCache->BytesRead is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->BytesRead is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -58,7 +59,7 @@ NTSTATUS PocReadFileNoCache(
 
     if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize) 
     {
-        DbgPrint("PocReadFileNoCache->FltGetVolumeContext failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FltGetVolumeContext failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -88,7 +89,7 @@ NTSTATUS PocReadFileNoCache(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocReadFileNoCache->FltCreateFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FltCreateFileEx failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -96,7 +97,7 @@ NTSTATUS PocReadFileNoCache(
 
     if (byteOffset.LowPart + readLength > FileSize)
     {
-        DbgPrint("PocReadFileNoCache->End of File.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->End of File.\n"));
         Status = STATUS_END_OF_FILE;
         goto EXIT;
     }
@@ -112,7 +113,7 @@ NTSTATUS PocReadFileNoCache(
 
     if (NULL == ReadBuffer)
     {
-        DbgPrint("PocReadFileNoCache->FltAllocatePoolAlignedWithTag ReadBuffer failed.\\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FltAllocatePoolAlignedWithTag ReadBuffer failed.\n"));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -137,7 +138,7 @@ NTSTATUS PocReadFileNoCache(
 
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint("PocReadFileNoCache->FltReadFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FltReadFileEx failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -184,7 +185,7 @@ NTSTATUS PocReadFileFromCache(
 
     if (NULL == ReadBuffer)
     {
-        DbgPrint("PocReadFileFromCache->ReadBuffer is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileFromCache->ReadBuffer is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -194,7 +195,7 @@ NTSTATUS PocReadFileFromCache(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocReadFileFromCache->FltReadFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileFromCache->FltReadFileEx failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -214,7 +215,7 @@ NTSTATUS PocWriteFileIntoCache(
 
     if (NULL == WriteBuffer)
     {
-        DbgPrint("PocWriteFileIntoCache->WriteBuffer is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocWriteFileIntoCache->WriteBuffer is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -226,7 +227,7 @@ NTSTATUS PocWriteFileIntoCache(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocWriteFileIntoCache->FltWriteFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocWriteFileIntoCache->FltWriteFileEx failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -243,7 +244,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 {
     if (NULL == FileName)
     {
-        DbgPrint("PocCreateExtraFileForEncryptionHeader->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->FileName is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -280,7 +281,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
     if (lpFileName == ExtraFileName)
     {
-        DbgPrint("PocCreateExtraFileForEncryptionHeader->FileName error.\\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->FileName error.\\n"));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -293,7 +294,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
     if (NULL == Buffer)
     {
-        DbgPrint("PocCreateExtraFileForEncryptionHeader->ExAllocatePoolWithTag Buffer failed.\\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->ExAllocatePoolWithTag Buffer failed.\n"));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -309,7 +310,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
         if (STATUS_SUCCESS != Status)
         {
-            DbgPrint("PocCreateExtraFileForEncryptionHeader->FltCreateFileEx1 failed. Status = 0x%x\n", Status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->FltCreateFileEx1 failed. Status = 0x%x\n", Status));
             goto EXIT;
         }
 
@@ -332,7 +333,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
             if (STATUS_SUCCESS != Status)
             {
-                DbgPrint("PocCreateExtraFileForEncryptionHeader->PocWriteFileIntoCache failed. Status = 0x%x\n", Status);
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->PocWriteFileIntoCache failed. Status = 0x%x\n", Status));
                 goto EXIT;
             }
 
@@ -350,7 +351,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
         if (STATUS_SUCCESS != Status)
         {
-            //DbgPrint("PocCreateExtraFileForEncryptionHeader->FltCreateFileEx2 failed. Status = 0x%x\n", Status);
+            //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->FltCreateFileEx2 failed. Status = 0x%x\n", Status));
             goto EXIT;
         }
     }
@@ -365,7 +366,7 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocCreateExtraFileForEncryptionHeader->PocReadFileFromCache failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateExtraFileForEncryptionHeader->PocReadFileFromCache failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -403,18 +404,18 @@ EXIT:
 NTSTATUS PocCreateFileForEncTailer(
     IN PCFLT_RELATED_OBJECTS FltObjects,
     IN PPOC_STREAM_CONTEXT StreamContext,
-    IN PCHAR ProcessName)
+    IN PWCHAR ProcessName)
 {
 
     if (NULL == StreamContext)
     {
-        DbgPrint("PocCreateFileForEncTailer->StreamContext is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->StreamContext is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
     if (NULL == StreamContext->FileName)
     {
-        DbgPrint("PocCreateFileForEncTailer->StreamContext->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->StreamContext->FileName is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -449,7 +450,7 @@ NTSTATUS PocCreateFileForEncTailer(
 
     if (!NT_SUCCESS(Status) || NULL == OutReadBuffer)
     {
-        DbgPrint("PocCreateFileForEncTailer->PocReadFileNoCache failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileNoCache failed. ProcessName = %ws Status = 0x%x\n", __FUNCTION__, ProcessName, Status));
         goto EXIT;
     }
 
@@ -475,11 +476,11 @@ NTSTATUS PocCreateFileForEncTailer(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    DbgPrint("PocCreateFileForEncTailer->PocNtfsFlushAndPurgeCache failed. Status = 0x%x\n", Status);
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->PocNtfsFlushAndPurgeCache failed. Status = 0x%x\n", Status));
                 }
                 else
                 {
-                    DbgPrint("PocCreateFileForEncTailer->File has been opened. Flush and purge cache.\n");
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->File has been opened. Flush and purge cache.\n"));
                 }
             }
         }
@@ -499,9 +500,11 @@ NTSTATUS PocCreateFileForEncTailer(
 
         Status = POC_FILE_HAS_ENCRYPTION_TAILER;
 
-        DbgPrint("\nPocCreateFileForEncTailer->File %ws has encryption tailer FileSize = %d.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->File %ws has encryption tailer FileSize = %d ProcessName = %ws.\n",
+            __FUNCTION__,
             StreamContext->FileName,
-            FileSize);
+            FileSize,
+            ProcessName));
     }
     else if(strncmp(((PPOC_ENCRYPTION_TAILER)OutReadBuffer)->Flag, EncryptionTailer.Flag,
         strlen(EncryptionTailer.Flag)) == 0)
@@ -521,7 +524,9 @@ NTSTATUS PocCreateFileForEncTailer(
 
         Status = POC_TAILER_WRONG_FILE_NAME;
 
-        DbgPrint("PocCreateFileForEncTailer->Ciphetext->other extension->target extension.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Ciphetext->other extension->target extension. ProcessName = %ws\n",
+            __FUNCTION__,
+            ProcessName));
     }
 
 
@@ -542,13 +547,13 @@ NTSTATUS PocAppendEncTailerToFile(
 {
     if (NULL == StreamContext)
     {
-        DbgPrint("PocAppendEncTailerToFile->StreamContext is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext is NULL.\n", __FUNCTION__));
         return STATUS_INVALID_PARAMETER;
     }
 
     if (NULL == StreamContext->FileName)
     {
-        DbgPrint("PocAppendEncTailerToFile->StreamContext->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext->FileName is NULL.\n", __FUNCTION__));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -574,7 +579,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
     {
-        DbgPrint("PocAppendEncTailerToFile->FltGetVolumeContext failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -596,7 +601,6 @@ NTSTATUS PocAppendEncTailerToFile(
         FILE_SHARE_READ,
         FILE_OPEN,
         FILE_NON_DIRECTORY_FILE |
-        FILE_SYNCHRONOUS_IO_NONALERT |
         FILE_NO_INTERMEDIATE_BUFFERING,
         NULL,
         0,
@@ -604,9 +608,18 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocAppendEncTailerToFile->FltCreateFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
+
+    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n %s->Process = %p Thread = %p Fcb = %p Ccb = %p Resource = %p PagingIoResource = %p.\n\n",
+        __FUNCTION__,
+        PsGetCurrentProcess(),
+        PsGetCurrentThread(),
+        (PCHAR)FileObject->FsContext,
+        FileObject->FsContext2,
+        ((PFSRTL_ADVANCED_FCB_HEADER)FileObject->FsContext)->Resource,
+        ((PFSRTL_ADVANCED_FCB_HEADER)FileObject->FsContext)->PagingIoResource));*/
 
 
     FileSize = StreamContext->FileSize;
@@ -617,7 +630,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (NULL == WriteBuffer)
     {
-        DbgPrint("PocAppendEncTailerToFile->FltAllocatePoolAlignedWithTag WriteBuffer failed.\\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -626,12 +639,13 @@ NTSTATUS PocAppendEncTailerToFile(
 
     ByteOffset.LowPart = ROUND_TO_SIZE(FileSize, VolumeContext->SectorSize);
 
-    RtlZeroMemory(EncryptionTailer.FileName, sizeof(EncryptionTailer.FileName));
-    RtlMoveMemory(EncryptionTailer.FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
-    EncryptionTailer.FileSize = StreamContext->FileSize;
-    EncryptionTailer.IsCipherText = StreamContext->IsCipherText;
 
     RtlMoveMemory(WriteBuffer, &EncryptionTailer, sizeof(POC_ENCRYPTION_TAILER));
+
+    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileSize = StreamContext->FileSize;;
+    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->IsCipherText = StreamContext->IsCipherText;
+    RtlMoveMemory(((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
+
 
     Status = FltWriteFileEx(
         FltObjects->Instance,
@@ -649,10 +663,10 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint("PocAppendEncTailerToFile->FltWriteFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltWriteFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
-    
+
 
 EXIT:
 
@@ -684,10 +698,124 @@ EXIT:
 }
 
 
+NTSTATUS PocAppendEncTailerToFileEx(
+    IN PCFLT_RELATED_OBJECTS FltObjects,
+    IN PPOC_STREAM_CONTEXT StreamContext)
+{
+    if (NULL == StreamContext)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (NULL == StreamContext->FileName)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext->FileName is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    PPOC_VOLUME_CONTEXT VolumeContext = NULL;
+
+
+    ULONG FileSize = 0;
+    LARGE_INTEGER ByteOffset = { 0 };
+    ULONG WriteLength = 0;
+    PCHAR WriteBuffer = NULL;
+    ULONG BytesWritten = 0;
+
+
+
+    Status = FltGetVolumeContext(gFilterHandle, FltObjects->Volume, &VolumeContext);
+
+    if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x\n", __FUNCTION__, Status));
+        goto EXIT;
+    }
+
+
+
+    FileSize = StreamContext->FileSize;
+
+    WriteLength = ROUND_TO_SIZE(PAGE_SIZE, VolumeContext->SectorSize);
+
+    WriteBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, WriteLength, WRITE_BUFFER_TAG);
+
+    if (NULL == WriteBuffer)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__));
+        Status = STATUS_UNSUCCESSFUL;
+        goto EXIT;
+    }
+
+    RtlZeroMemory(WriteBuffer, WriteLength);
+
+    ByteOffset.LowPart = ROUND_TO_SIZE(FileSize, VolumeContext->SectorSize);
+
+    RtlMoveMemory(WriteBuffer, &EncryptionTailer, sizeof(POC_ENCRYPTION_TAILER));
+
+    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileSize = StreamContext->FileSize;;
+    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->IsCipherText = StreamContext->IsCipherText;
+    RtlMoveMemory(((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
+
+    Status = FltWriteFileEx(
+        FltObjects->Instance,
+        FltObjects->FileObject,
+        &ByteOffset,
+        WriteLength,
+        WriteBuffer,
+        FLTFL_IO_OPERATION_NON_CACHED |
+        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
+        &BytesWritten,
+        NULL,
+        NULL,
+        NULL,
+        NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltWriteFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
+        goto EXIT;
+    }
+
+
+EXIT:
+
+    if (NULL != VolumeContext)
+    {
+        FltReleaseContext(VolumeContext);
+        VolumeContext = NULL;
+    }
+
+
+    if (NULL != WriteBuffer)
+    {
+        FltFreePoolAlignedWithTag(FltObjects->Instance, WriteBuffer, WRITE_BUFFER_TAG);
+        WriteBuffer = NULL;
+    }
+
+    return Status;
+}
+
+
 NTSTATUS PocNtfsFlushAndPurgeCache(
     IN PFLT_INSTANCE Instance,
     IN PFILE_OBJECT FileObject)
 {
+    if (NULL == Instance)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Instance is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (NULL == FileObject)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileObject is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
     PFLT_CALLBACK_DATA Data = NULL;
@@ -696,7 +824,7 @@ NTSTATUS PocNtfsFlushAndPurgeCache(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocNtfsFlushAndPurgeCache->FltAllocateCallbackData failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocNtfsFlushAndPurgeCache->FltAllocateCallbackData failed. Status = 0x%x\n", Status));
         return Status;
     }
 
@@ -704,6 +832,8 @@ NTSTATUS PocNtfsFlushAndPurgeCache(
     Data->Iopb->MinorFunction = IRP_MN_FLUSH_AND_PURGE;
     Data->Iopb->IrpFlags = IRP_SYNCHRONOUS_API;
     FltPerformSynchronousIo(Data);
+
+    FltFreeCallbackData(Data);
 
     return Data->IoStatus.Status;
 }
@@ -715,7 +845,7 @@ NTSTATUS PocFlushOriginalCache(
 {
     if (NULL == FileName)
     {
-        DbgPrint("PocFlushOriginalCache->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -752,7 +882,7 @@ NTSTATUS PocFlushOriginalCache(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocFlushOriginalCache->FltCreateFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -762,7 +892,7 @@ NTSTATUS PocFlushOriginalCache(
 
         if (STATUS_SUCCESS != Status)
         {
-            DbgPrint("PocFlushOriginalCache->FltFlushBuffers failed. Status = 0x%x\n", Status);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocFlushOriginalCache->FltFlushBuffers failed. Status = 0x%x\n", Status));
             goto EXIT;
         }
     }
@@ -793,7 +923,7 @@ NTSTATUS PocReentryToGetStreamContext(
 {
     if (NULL == FileName)
     {
-        DbgPrint("PocReentryToGetStreamContext->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReentryToGetStreamContext->FileName is NULL.\n"));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -833,7 +963,7 @@ NTSTATUS PocReentryToGetStreamContext(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocReentryToGetStreamContext->ZwCreateFile failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReentryToGetStreamContext->ZwCreateFile failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -841,7 +971,7 @@ NTSTATUS PocReentryToGetStreamContext(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocReentryToGetStreamContext->ObReferenceObjectByHandle failed ststus = 0x%x.\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReentryToGetStreamContext->ObReferenceObjectByHandle failed ststus = 0x%x.\n", Status));
         goto EXIT;
     }
 
@@ -854,7 +984,7 @@ NTSTATUS PocReentryToGetStreamContext(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocReentryToGetStreamContext->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReentryToGetStreamContext->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
         goto EXIT;
     }
 
@@ -883,7 +1013,7 @@ NTSTATUS PocReentryToEncrypt(
 {
     if (NULL == FileName)
     {
-        DbgPrint("PocDirectEncrypt->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -910,7 +1040,7 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->PocReentryToGetStreamContext failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         if (STATUS_NOT_FOUND == Status)
         {
             Status = POC_IRRELEVENT_FILE_EXTENSION;
@@ -921,7 +1051,7 @@ NTSTATUS PocReentryToEncrypt(
     if (TRUE == StreamContext->IsCipherText)
     {
         Status = POC_FILE_IS_CIPHERTEXT;
-        DbgPrint("PocDirectEncrypt->%ws is ciphertext. Encrypt failed.\n", FileName);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws is ciphertext. Encrypt failed.\n", __FUNCTION__, FileName));
         goto EXIT;
     }
 
@@ -955,15 +1085,24 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->FltCreateFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
+
+    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n %s->Process = %p Thread = %p Fcb = %p Ccb = %p Resource = %p PagingIoResource = %p.\n\n",
+        __FUNCTION__,
+        PsGetCurrentProcess(),
+        PsGetCurrentThread(),
+        (PCHAR)FileObject->FsContext,
+        FileObject->FsContext2,
+        ((PFSRTL_ADVANCED_FCB_HEADER)FileObject->FsContext)->Resource,
+        ((PFSRTL_ADVANCED_FCB_HEADER)FileObject->FsContext)->PagingIoResource));*/
 
     FileSize = PocQueryEndOfFileInfo(Instance, FileObject);
 
     if(0 == FileSize)
     {
-        DbgPrint("PocDirectEncrypt->FileSize is zero.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileSize is zero.\n", __FUNCTION__));
         Status = STATUS_SUCCESS;
         goto EXIT;
     }
@@ -972,7 +1111,7 @@ NTSTATUS PocReentryToEncrypt(
 
     if (NULL == ReadBuffer)
     {
-        DbgPrint("PocDirectEncrypt->ExAllocatePoolWithTag ReadBuffer failed.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag ReadBuffer failed.\n", __FUNCTION__));
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto EXIT;
     }
@@ -990,7 +1129,7 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->PocReadFileFromCache failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileFromCache failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1036,7 +1175,7 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->ZwCreateFile failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ZwCreateFile failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1050,7 +1189,7 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->ObReferenceObjectByHandle failed. Status = 0x%x.\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ObReferenceObjectByHandle failed. Status = 0x%x.\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1066,13 +1205,14 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectEncrypt->PocWriteFileIntoCache failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocWriteFileIntoCache failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
-    DbgPrint("\nPocDirectEncrypt->success. FileName = %ws FileSize = %d.\n", 
-        FileName, 
-        ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart);
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->success. FileName = %ws FileSize = %d.\n",
+        __FUNCTION__,
+        FileName,
+        ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));
 
 EXIT:
 
@@ -1110,7 +1250,7 @@ NTSTATUS PocReentryToDecrypt(
 {
     if (NULL == FileName)
     {
-        DbgPrint("PocDirectDecrypt->FileName is NULL.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -1140,7 +1280,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->PocReentryToGetStreamContext failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         if (STATUS_NOT_FOUND == Status)
         {
             Status = POC_IRRELEVENT_FILE_EXTENSION;
@@ -1151,7 +1291,7 @@ NTSTATUS PocReentryToDecrypt(
     if (FALSE == StreamContext->IsCipherText)
     {
         Status = POC_FILE_IS_PLAINTEXT;
-        DbgPrint("PocDirectDecrypt->%ws is plaintext. Decrypt failed.\n", FileName);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws is plaintext. Decrypt failed.\n", __FUNCTION__, FileName));
         goto EXIT;
     }
 
@@ -1182,7 +1322,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->ZwCreateFile failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ZwCreateFile failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1196,7 +1336,14 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->ObReferenceObjectByHandle failed. Status = 0x%x.\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ObReferenceObjectByHandle failed. Status = 0x%x.\n", __FUNCTION__, Status));
+        goto EXIT;
+    }
+
+    if (FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Unauthorized process can't decrypt file.\n", __FUNCTION__));
+        Status = POC_IS_UNAUTHORIZED_PROCESS;
         goto EXIT;
     }
 
@@ -1206,7 +1353,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (NULL == ReadBuffer)
     {
-        DbgPrint("PocDirectDecrypt->ExAllocatePoolWithTag ReadBuffer failed.\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag ReadBuffer failed.\n", __FUNCTION__));
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto EXIT;
     }
@@ -1225,9 +1372,10 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->PocReadFileFromCache failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileFromCache failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
+
 
     Status = PocSetEndOfFileInfo(
         Instance,
@@ -1236,7 +1384,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->PocSetEndOfFileInfo failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSetEndOfFileInfo failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1285,7 +1433,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->FltCreateFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1296,7 +1444,7 @@ NTSTATUS PocReentryToDecrypt(
 
     if (NULL == WriteBuffer)
     {
-        DbgPrint("PocDirectDecrypt->FltAllocatePoolAlignedWithTag WriteBuffer failed.\\n");
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -1325,32 +1473,26 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        DbgPrint("PocDirectDecrypt->FltWriteFileEx failed. Status = 0x%x\n", Status);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltWriteFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
 
-    if (NULL != StreamContext)
-    {
-        FltReleaseContext(StreamContext);
-        StreamContext = NULL;
-    }
+    PocUpdateFlagInStreamContext(StreamContext, 0);
 
-    Status = FltDeleteStreamContext(Instance, FileObject, NULL);
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    if (STATUS_SUCCESS != Status)
-    {
-        DbgPrint("PocDirectDecrypt->FltDeleteStreamContext failed. Status = 0x%x\n", Status);
-    }
-    else
-    {
-        DbgPrint("\nPocDirectDecrypt->FltDeleteStreamContext FileName = %ws.\n", FileName);
-    }
+    StreamContext->IsCipherText = FALSE;
+    StreamContext->FileSize = 0;
+    RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     
 
-    DbgPrint("PocDirectDecrypt->success. FileName = %ws FileSize = %d.\n\n", 
-        FileName, 
-        ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart);
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %d.\n\n",
+        __FUNCTION__,
+        FileName,
+        ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));
 
 EXIT:
 

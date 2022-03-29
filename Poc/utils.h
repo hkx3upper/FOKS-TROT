@@ -1,10 +1,7 @@
 #pragma once
 
-#include <fltKernel.h>
-
-NTSTATUS PocGetProcessName(
-	IN PFLT_CALLBACK_DATA Data, 
-	IN OUT PCHAR ProcessName);
+#include "global.h"
+#include "import.h"
 
 NTSTATUS PocGetFileNameOrExtension(
 	IN PFLT_CALLBACK_DATA Data, 
@@ -22,13 +19,13 @@ NTSTATUS PocSetEndOfFileInfo(
 
 USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume);
 
-NTSTATUS PocBypassIrrelevantProcess(IN PCHAR ProcessName);
+NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data);
 
 NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName);
 
 NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension);
 
-NTSTATUS PocIsUnauthorizedProcess(IN PCHAR ProcessName);
+NTSTATUS PocIsUnauthorizedProcess(IN PWCHAR ProcessName);
 
 NTSTATUS PocParseFileNameExtension(
 	IN PWCHAR FileName, 
@@ -42,3 +39,19 @@ NTSTATUS PocGetVolumeInstance(
 	IN PFLT_FILTER pFilter,
 	IN PUNICODE_STRING pVolumeName,
 	OUT PFLT_INSTANCE* Instance);
+
+NTSTATUS PocSymbolLinkPathToDosPath(
+	IN PWCHAR Path,
+	IN OUT PWCHAR DosPath);
+
+NTSTATUS PocSymbolLinkPathToDosPath(
+	IN PWCHAR Path,
+	IN OUT PWCHAR DosPath);
+
+NTSTATUS PocInjectApc(
+	IN PKTHREAD Thread,
+	IN KPROCESSOR_MODE ApcMode,
+	IN PKNORMAL_ROUTINE NormalRoutine,
+	IN PVOID NormalContext,
+	IN PVOID SystemArgument1,
+	IN PVOID SystemArgument2);

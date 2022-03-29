@@ -52,3 +52,9 @@ NTSTATUS PocStreamModeDecrypt(
 	IN PCHAR InBuffer,
 	IN ULONG InBufferSize,
 	IN OUT PCHAR InOutBuffer);
+
+NTSTATUS PocComputeHash(
+	IN PUCHAR Data,
+	IN ULONG DataLength,
+	IN OUT PUCHAR* DataDigestPointer,
+	IN OUT ULONG* DataDigestLengthPointer);

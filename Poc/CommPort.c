@@ -2,6 +2,7 @@
 #include "commport.h"
 #include "utils.h"
 #include "filefuncs.h"
+#include "process.h"
 
 PFLT_PORT gServerPort = NULL;
 PFLT_PORT gClientPort = NULL;
@@ -22,7 +23,7 @@ NTSTATUS PocConnectNotifyCallback(
 
 	PAGED_CODE();
 
-	DbgPrint("PocConnectNotifyCallback->connect with user.\n");
+	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocConnectNotifyCallback->connect with user.\n"));
 
 	gClientPort = ClientPort;
 
@@ -38,7 +39,7 @@ VOID PocDisconnectNotifyCallback(
 
 	PAGED_CODE();
 
-	DbgPrint("PocDisconnectNotifyCallback->disconnect with user.\n");
+	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocDisconnectNotifyCallback->disconnect with user.\n"));
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
@@ -65,6 +66,8 @@ NTSTATUS PocMessageNotifyCallback(
 	POC_MESSAGE_HEADER MessageHeader = { 0 };
 	NTSTATUS Status = STATUS_SUCCESS;
 
+	UNICODE_STRING uDosName = { 0 };
+
 	if (InputBuffer != NULL)
 	{
 
@@ -78,12 +81,15 @@ NTSTATUS PocMessageNotifyCallback(
 			{
 			case POC_HELLO_KERNEL:
 			{
-				DbgPrint("%s", (Buffer + sizeof(POC_MESSAGE_HEADER)));
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s", (Buffer + sizeof(POC_MESSAGE_HEADER))));
 				break;
 			}
 			case POC_PRIVILEGE_ENCRYPT:
 			case POC_PRIVILEGE_DECRYPT:
 			{
+				/*
+				* 特权加密和特权解密，从桌面传命令进驱动
+				*/
 				CHAR TempFileName[POC_MAX_NAME_LENGTH] = { 0 };
 				WCHAR wFileName[POC_MAX_NAME_LENGTH] = { 0 };
 				ANSI_STRING Ansi = { 0 };
@@ -92,7 +98,6 @@ NTSTATUS PocMessageNotifyCallback(
 
 				WCHAR wSymbolLinkName[POC_MAX_NAME_LENGTH] = { 0 };
 				UNICODE_STRING uSymbolLinkName = { 0 };
-				UNICODE_STRING uDosName = { 0 };
 
 				PFLT_INSTANCE Instance = NULL;
 
@@ -115,9 +120,13 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status);
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status));
 					goto EXIT;
 				}
+
+				/*
+				* 把文件的符号链接名转换为Dos名
+				*/
 
 				lpFileName = uFileName.Buffer;
 
@@ -140,7 +149,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", Status);
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
 
@@ -149,9 +158,9 @@ NTSTATUS PocMessageNotifyCallback(
 					&uDosName,
 					&Instance);
 
-				if (STATUS_SUCCESS != Status)
+				if (STATUS_SUCCESS != Status && NULL != Instance)
 				{
-					DbgPrint("PocMessageNotifyCallback->PocGetVolumeInstance failed.\n");
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocGetVolumeInstance failed.\n", __FUNCTION__));
 					goto EXIT;
 				}
 
@@ -163,7 +172,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 					if (STATUS_SUCCESS != Status)
 					{
-						DbgPrint("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n");
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
 						goto EXIT;
 					}
 				}
@@ -175,37 +184,83 @@ NTSTATUS PocMessageNotifyCallback(
 
 					if (STATUS_SUCCESS != Status)
 					{
-						DbgPrint("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n");
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
 						goto EXIT;
 					}
 				}
 
+				break;
+			}
+			case POC_ADD_PROCESS_RULES:
+			{
+				/*
+				* 桌面添加进程规则
+				*/
+				PPOC_PROCESS_RULES ProcessRules = NULL;
 
+				ANSI_STRING aProcessName = { 0 };
+				UNICODE_STRING uProcessName = { 0 };
+				WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+				WCHAR DosProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
-
-EXIT:			if (NULL != uDosName.Buffer)
+				if (NULL == ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->ProcessName)
 				{
-					ExFreePool(uDosName.Buffer);
-					uDosName.Buffer = NULL;
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ProcessName is null.\n", __FUNCTION__));
+					Status =  STATUS_INVALID_PARAMETER;
+					goto EXIT;
 				}
-				
-				if (STATUS_SUCCESS == Status)
-				{
-					Status = 1;
-				}
-				MessageHeader.Command = Status;
-				MessageHeader.Length = 0;
 
-				Status = FltSendMessage(gFilterHandle, &gClientPort, &MessageHeader, sizeof(MessageHeader), NULL, NULL, NULL);
+				aProcessName.Buffer = ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->ProcessName;
+				aProcessName.Length = (USHORT)strlen(aProcessName.Buffer);
+				aProcessName.MaximumLength = POC_MAX_NAME_LENGTH;
+
+				uProcessName.Buffer = ProcessName;
+				uProcessName.MaximumLength = sizeof(ProcessName);
+
+				Status = RtlAnsiStringToUnicodeString(&uProcessName, &aProcessName, FALSE);
 
 				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->FltSendMessage failed status = 0x%x.\n", Status);
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+						("%s->RtlAnsiStringToUnicodeString failed. Status = 0x%x.\n", 
+							__FUNCTION__, Status));
+
+					goto EXIT;
 				}
-				else
+
+				Status = PocSymbolLinkPathToDosPath(ProcessName, DosProcessName);
+
+				if (STATUS_SUCCESS != Status)
 				{
-					DbgPrint("PocMessageNotifyCallback->FltSendMessage success.\n");
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
+					goto EXIT;
 				}
+
+
+				Status = PocFindProcessRulesNodeByName(
+					DosProcessName,
+					NULL,
+					TRUE);
+
+				Status = PocCreateProcessRulesNode(&ProcessRules);
+
+				if (STATUS_SUCCESS != Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
+					goto EXIT;
+				}
+
+				ProcessRules->Access = ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Access;
+
+				wcsncpy(ProcessRules->ProcessName, 
+					DosProcessName,
+					wcslen(DosProcessName));
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add process rules success. DosProcessName = %ws Access = %d.\n", __FUNCTION__,
+					ProcessRules->ProcessName,
+					ProcessRules->Access));
+
+				Status = STATUS_SUCCESS;
 
 				break;
 			}
@@ -221,6 +276,31 @@ EXIT:			if (NULL != uDosName.Buffer)
 			return GetExceptionCode();
 		}
 
+	}
+
+EXIT:			
+	if (NULL != uDosName.Buffer)
+	{
+		ExFreePool(uDosName.Buffer);
+		uDosName.Buffer = NULL;
+	}
+
+	if (STATUS_SUCCESS == Status)
+	{
+		Status = 1;
+	}
+	MessageHeader.Command = Status;
+	MessageHeader.Length = 0;
+
+	Status = FltSendMessage(gFilterHandle, &gClientPort, &MessageHeader, sizeof(MessageHeader), NULL, NULL, NULL);
+
+	if (STATUS_SUCCESS != Status)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltSendMessage failed status = 0x%x.\n", __FUNCTION__, Status));
+	}
+	else
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltSendMessage success.\n", __FUNCTION__));
 	}
 
 
@@ -240,7 +320,7 @@ NTSTATUS PocInitCommPort()
 
 	if (!NT_SUCCESS(Status))
 	{
-		DbgPrint("PocInitCommPort->FltBuildDefaultSecurityDescriptor failed. Status = 0x%x\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitCommPort->FltBuildDefaultSecurityDescriptor failed. Status = 0x%x\n", Status));
 		return Status;
 	}
 
@@ -268,7 +348,7 @@ NTSTATUS PocInitCommPort()
 	if (!NT_SUCCESS(Status))
 	{
 		FltCloseCommunicationPort(gServerPort);
-		DbgPrint("PocInitCommPort->FltCreateCommunicationPort failed. Status = 0x%x.\n", Status);
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitCommPort->FltCreateCommunicationPort failed. Status = 0x%x.\n", Status));
 		return Status;
 	}
 

@@ -1,0 +1,21 @@
+﻿<Window x:Class="PocUserPanel.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PocUserPanel"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="300" Width="600">
+    <Grid>
+        <Label Content="进程名:(完整路径)" HorizontalAlignment="Left" Margin="34,90,0,0" VerticalAlignment="Top" FontWeight="Bold"/>
+        <Label Content="权限:(明文,密文)" HorizontalAlignment="Left" Margin="34,116,0,0" VerticalAlignment="Top" FontWeight="Bold"/>
+        <Label Content="配置进程策略" HorizontalAlignment="Center" Margin="0,32,0,0" VerticalAlignment="Top"  FontWeight="Bold"/>
+
+        <TextBox x:Name="ProcessName" HorizontalAlignment="Left" Margin="180,90,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="370"/>
+        <TextBox x:Name="Access" HorizontalAlignment="Left" Margin="180,120,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="370"/>
+
+        <Button x:Name="AddPR" Content="添加进程策略" HorizontalAlignment="Center" Margin="0,166,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.297,0.381" Click="AddPR_Click"/>
+        <Label Content="hkx3upper 2022.03.09" HorizontalAlignment="Center" Margin="0,207,0,0" VerticalAlignment="Top"/>
+
+    </Grid>
+</Window>

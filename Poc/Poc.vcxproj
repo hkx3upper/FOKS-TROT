@@ -41,6 +41,9 @@
     <ClCompile Include="FileFuncs.c" />
     <ClCompile Include="FileInfo.c" />
     <ClCompile Include="FileObject.c" />
+    <ClCompile Include="Ldrreloc.c" />
+    <ClCompile Include="ProcesSecure.c" />
+    <ClCompile Include="Process.c" />
     <ClCompile Include="Read.c" />
     <ClCompile Include="Utils.c" />
     <ClCompile Include="Poc.c" />
@@ -162,6 +165,9 @@
     <Link>
       <AdditionalDependencies>fltmgr.lib;ksecdd.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>D:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>
+      </StackReserveSize>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -200,6 +206,10 @@
     <ClInclude Include="fileinfo.h" />
     <ClInclude Include="fileobject.h" />
     <ClInclude Include="global.h" />
+    <ClInclude Include="import.h" />
+    <ClInclude Include="ldrreloc.h" />
+    <ClInclude Include="processecure.h" />
+    <ClInclude Include="process.h" />
     <ClInclude Include="read.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="write.h" />

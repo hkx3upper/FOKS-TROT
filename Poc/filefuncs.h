@@ -2,6 +2,7 @@
 
 #include "global.h"
 #include "context.h"
+#include "utils.h"
 
 typedef struct _POC_ENCRYPTION_HEADER
 {
@@ -50,9 +51,13 @@ NTSTATUS PocCreateExtraFileForEncryptionHeader(
 NTSTATUS PocCreateFileForEncTailer(
 	IN PCFLT_RELATED_OBJECTS FltObjects,
 	IN PPOC_STREAM_CONTEXT StreamContext,
-	IN PCHAR ProcessName);
+	IN PWCHAR ProcessName);
 
 NTSTATUS PocAppendEncTailerToFile(
+	IN PCFLT_RELATED_OBJECTS FltObjects,
+	IN PPOC_STREAM_CONTEXT StreamContext);
+
+NTSTATUS PocAppendEncTailerToFileEx(
 	IN PCFLT_RELATED_OBJECTS FltObjects,
 	IN PPOC_STREAM_CONTEXT StreamContext);
 
