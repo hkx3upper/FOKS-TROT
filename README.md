@@ -31,6 +31,8 @@ Process.c->PocIsUnauthorizedProcess设置非授权进程
 
 ## 贡献者：  
 hkx3upper: https://github.com/hkx3upper  
-wangzhankun: https://github.com/wangzhankun  测试与修复
+wangzhankun: https://github.com/wangzhankun
+
+**欢迎愿意开发与测试项目的相关人员加入**
 
 # 其他实现细节在开发文档.pdf中
