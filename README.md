@@ -1,16 +1,16 @@
 # FOKS-TROT
 
-## minifilter透明加解密过滤驱动
-**
-It's a minifilter used for transparent-encrypting.  
+## minifilter透明加解密过滤驱动  
+
+**It's a minifilter used for transparent-encrypting.  **
 1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
-2.Using StreamContext and 4KB-tail to save information of encrypted file.
-3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.
-4.Read and Write using swapbuffers method in Windows-driver-samples-master.
-5.Direct-encrypt and direct-decrypt by reentry minifilter.
-6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.
-7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.
-**
+2.Using StreamContext and 4KB-tail to save information of encrypted file.  
+3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.  
+4.Read and Write using swapbuffers method in Windows-driver-samples-master.  
+5.Direct-encrypt and direct-decrypt by reentry minifilter.  
+6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.  
+7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.  
+
 
 ## 引言：  
 本项目是个实验性项目，且作者对于文件系统等的理解难免会存在偏差，因此可能会产生误导，望读者辩证的学习，并且请读者遵循相关的开源协议。  
