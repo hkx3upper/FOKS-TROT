@@ -1,6 +1,6 @@
 # FOKS-TROT
 
-## minifilter透明加解密过滤驱动  
+## minifilter双缓冲透明加解密过滤驱动  
 
 **It's a minifilter used for transparent-encrypting.**  
 1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
