@@ -2,7 +2,7 @@
 
 ## minifilter透明加解密过滤驱动  
 
-**It's a minifilter used for transparent-encrypting.  **
+**It's a minifilter used for transparent-encrypting.**  
 1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
 2.Using StreamContext and 4KB-tail to save information of encrypted file.  
 3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.  
