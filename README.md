@@ -2,16 +2,6 @@
 
 ## minifilter双缓冲透明加解密过滤驱动  
 
-**It's a minifilter used for transparent-encrypting.**  
-1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
-2.Using StreamContext and 4KB-tail to save information of encrypted file.  
-3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.  
-4.Read and Write using swapbuffers method in Windows-driver-samples-master.  
-5.Direct-encrypt and direct-decrypt by reentry minifilter.  
-6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.  
-7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.  
-
-
 ## 引言：  
 本项目是个实验性项目，且作者对于文件系统等的理解难免会存在偏差，因此可能会产生误导，望读者辩证的学习，并且请读者遵循相关的开源协议。  
 因为之前写过一个minifilter的透明加密解密驱动，但当时水平确实有限，有很多的问题，没有找到原因，只是进行了规避，导致在错误的基础上又产生了错误，所以在之前项目开发经验的基础上，写了这个项目。  
@@ -26,6 +16,15 @@
 5.特权加密和特权解密使用重入（Reentry）的方式，使驱动加密解密文件；  
 6.解决FileRenameInformationEx和FileRenameInformation问题，因此可以自动加密解密docx，doc，pptx，ppt，xlsx，xls等使用tmp文件重命名方式读写的文件；  
 7.注册进程相关回调，使用链表统一管理授权与非授权进程；注册进程与线程对象回调，保护进程EPROCESS,ETHREAD对象；对授权进程的代码段进行完整性校验。  
+
+**It's a minifilter used for transparent-encrypting.**  
+1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
+2.Using StreamContext and 4KB-tail to save information of encrypted file.  
+3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.  
+4.Read and Write using swapbuffers method in Windows-driver-samples-master.  
+5.Direct-encrypt and direct-decrypt by reentry minifilter.  
+6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.  
+7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.  
 
 ## 编译及使用方法：  
 1.安装CNG库：  
