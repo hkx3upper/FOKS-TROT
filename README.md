@@ -26,11 +26,6 @@
 6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.  
 7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.  
 
-**流程图如下：**  
-eg：![Create](https://github.com/hkx3upper/FOKS-TROT/blob/main/Resources/Create.jpg)
-eg：![Read](https://github.com/hkx3upper/FOKS-TROT/blob/main/Resources/Read.jpg)
-eg：![Write](https://github.com/hkx3upper/FOKS-TROT/blob/main/Resources/Write.jpg)
-
 ## 编译及使用方法：  
 1.安装CNG库：  
 https://www.microsoft.com/en-us/download/details.aspx?id=30688  
