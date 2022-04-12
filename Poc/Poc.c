@@ -1479,14 +1479,6 @@ PocPostCloseOperation(
         PocUpdateFlagInStreamContext(StreamContext, POC_BEING_DIRECT_ENCRYPTING);
 
         /*
-        * 同上
-        */
-
-        //Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
-
-        Status = PocFlushOriginalCache(FltObjects, StreamContext->FileName);
-
-        /*
         * 其他类型文件重命名为目标扩展文件的情况，对重命名的文件进行加密
         * 这个POC_RENAME_TO_ENCRYPT是在PostSetInformation中设置的
         */
