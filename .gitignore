@@ -1,3 +1,5 @@
 .vs/**
 **/x64/**
 **/.vscode/**
+PocUserPanel/obj/*
+*.log
