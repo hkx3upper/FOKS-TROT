@@ -527,7 +527,10 @@ NTSTATUS PocFindProcessRulesNodeByName(
 
 			if (Remove)
 			{
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Remove process = %ws Access = %d.\n",
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: %s->Remove process = %ws Access = %u.\n",
+					__FUNCTION__,
+					__FILE__,
+					__LINE__,
 					__FUNCTION__,
 					ProcessRules->ProcessName,
 					ProcessRules->Access));

@@ -94,13 +94,7 @@ PocPreReadOperation(
         goto ERROR;
     }
 
-    
-    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreReadOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
-    //    Data->Iopb->Parameters.Read.ByteOffset.LowPart,
-    //    Data->Iopb->Parameters.Read.Length,
-    //    ProcessName, StreamContext->FileName,
-    //    NonCachedIo,
-    //    PagingIo));
+
     
 
     StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
@@ -117,7 +111,7 @@ PocPreReadOperation(
 
     if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %d. NewLength = %d\n", 
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n", 
             ProcessName, 
             Data->Iopb->Parameters.Read.Length,
             StreamContext->FileSize - StartingVbo));
@@ -599,14 +593,7 @@ PocPostReadOperation(
 
         Status = PocGetProcessName(Data, ProcessName);
 
-        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
-            StartingVbo,
-            LengthReturned,
-            ProcessName, 
-            StreamContext->FileName));*/
-
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %s\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %u Length = %u ProcessName = %s\n",
             StartingVbo,
             LengthReturned,
             ProcessName));
