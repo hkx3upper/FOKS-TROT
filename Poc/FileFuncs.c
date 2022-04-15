@@ -500,7 +500,10 @@ NTSTATUS PocCreateFileForEncTailer(
 
         Status = POC_FILE_HAS_ENCRYPTION_TAILER;
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->File %ws has encryption tailer FileSize = %d ProcessName = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s@%s@%d: %s->File %ws has encryption tailer FileSize = %u ProcessName = %ws.\n",
+            __FUNCTION__,
+            __FILE__,
+            __LINE__,
             __FUNCTION__,
             StreamContext->FileName,
             FileSize,
@@ -1209,7 +1212,10 @@ NTSTATUS PocReentryToEncrypt(
         goto EXIT;
     }
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->success. FileName = %ws FileSize = %d.\n",
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s@%s@%d: %s->success. FileName = %ws FileSize = %u.\n",
+        __FUNCTION__,
+        __FILE__,
+        __LINE__,
         __FUNCTION__,
         FileName,
         ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));
@@ -1489,7 +1495,7 @@ NTSTATUS PocReentryToDecrypt(
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %d.\n\n",
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %u.\n\n",
         __FUNCTION__,
         FileName,
         ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));

@@ -74,9 +74,6 @@ PocPreQueryInformationOperation(
     }
 
 
-    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %ws File = %ws.\n",
-        Data->Iopb->Parameters.QueryFileInformation.FileInformationClass,
-        ProcessName, StreamContext->FileName));*/
 
     *CompletionContext = StreamContext;
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;

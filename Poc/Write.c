@@ -99,16 +99,9 @@ PocPreWriteOperation(
     Status = PocGetProcessName(Data, ProcessName);
 
 
-    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
-    //    Data->Iopb->Parameters.Write.ByteOffset.LowPart,
-    //    Data->Iopb->Parameters.Write.Length,
-    //    ProcessName, StreamContext->FileName,
-    //    NonCachedIo,
-    //    PagingIo));
-
     if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %d ProcessName = %ws File = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %u ProcessName = %ws File = %ws.\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
@@ -118,7 +111,7 @@ PocPreWriteOperation(
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
         && NonCachedIo)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %d ProcessName = %ws File = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %u ProcessName = %ws File = %ws.\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
 
         Data->IoStatus.Status = STATUS_SUCCESS;
@@ -172,7 +165,7 @@ PocPreWriteOperation(
             LengthReturned = FileSize - StartingVbo;
         }
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %d.\n", LengthReturned));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %u.\n", LengthReturned));
         
         if (Data->Iopb->Parameters.Write.MdlAddress != NULL) 
         {
@@ -427,7 +420,7 @@ PocPreWriteOperation(
         }
 
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %u Length = %u ProcessName = %ws File = %ws.\n\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart,
             LengthReturned,
             ProcessName,
