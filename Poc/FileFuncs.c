@@ -1391,7 +1391,6 @@ NTSTATUS PocReentryToDecrypt(
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %u.\n\n",
     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %d.\n\n",
         __FUNCTION__,
         FileName,
