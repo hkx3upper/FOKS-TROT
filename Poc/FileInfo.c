@@ -62,7 +62,7 @@ PocPreQueryInformationOperation(
 
     Status = PocGetProcessName(Data, ProcessName);
 
-    if (!StreamContext->IsCipherText)
+    if (!StreamContext->IsCipherText && 0 == StreamContext->FileSize)
     {
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
