@@ -94,7 +94,13 @@ PocPreReadOperation(
         goto ERROR;
     }
 
-
+    
+    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreReadOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //    Data->Iopb->Parameters.Read.ByteOffset.LowPart,
+    //    Data->Iopb->Parameters.Read.Length,
+    //    ProcessName, StreamContext->FileName,
+    //    NonCachedIo,
+    //    PagingIo));
     
 
     StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
@@ -111,7 +117,7 @@ PocPreReadOperation(
 
     if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n", 
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %d. NewLength = %d\n", 
             ProcessName, 
             Data->Iopb->Parameters.Read.Length,
             StreamContext->FileSize - StartingVbo));
@@ -368,13 +374,24 @@ PocPostReadOperation(
 
         try
         {
-
             if (FileSize < AES_BLOCK_SIZE)
             {
                 /*
-                * 文件小于一个块，采用流式解密
+                * 文件小于一个块
                 */
-                PocStreamModeDecrypt(NewBuffer, LengthReturned, OrigBuffer);
+
+                LengthReturned = AES_BLOCK_SIZE;
+
+                Status = PocAesECBDecrypt(NewBuffer, LengthReturned, OrigBuffer, &LengthReturned);
+
+                if (STATUS_SUCCESS != Status)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt1 failed.\n"));
+                    Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+                    Data->IoStatus.Information = 0;
+                    Status = FLT_POSTOP_FINISHED_PROCESSING;
+                    goto EXIT;
+                }
 
             }
             else if ((FileSize > StartingVbo + LengthReturned) && 
@@ -593,28 +610,11 @@ PocPostReadOperation(
 
         Status = PocGetProcessName(Data, ProcessName);
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %u Length = %u ProcessName = %s\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
             StartingVbo,
             LengthReturned,
-            ProcessName));
-
-        if (NULL != StreamContext)
-        {
-            if (NULL != StreamContext->FileName)
-            {
-                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = %ws\n", StreamContext->FileName));
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, FileName address is 0x%016x\n", __FUNCTION__, StreamContext->FileName));
-                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%p\n", StreamContext->FileName));
-            }
-            else
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s,FileName = NULL\n", __FUNCTION__));
-            }
-        }
-        else
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, StreamContext = NULL\n", __FUNCTION__));
-        }
+            ProcessName, 
+            StreamContext->FileName));
 
        
     }

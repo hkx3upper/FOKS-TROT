@@ -32,7 +32,7 @@ Environment:
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 
-PFLT_FILTER gFilterHandle;
+PFLT_FILTER gFilterHandle = NULL;
 
 
 /*************************************************************************
@@ -940,7 +940,6 @@ PocPostCreateOperation(
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
     WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
 
-
     /*
     * 如果FO创建失败，不进入PocFindOrCreateStreamContext
     */
@@ -1088,7 +1087,7 @@ PocPostCreateOperation(
             (FILE_READ_DATA)))
         {
             Status = PocFlushOriginalCache(
-                FltObjects,
+                FltObjects->Instance,
                 StreamContext->FileName);
 
             if (STATUS_SUCCESS != Status)
@@ -1416,7 +1415,6 @@ PocPostCloseOperation(
 
     //LARGE_INTEGER Interval = { 0 };
 
-
     Status = PocGetProcessName(Data, ProcessName);
 
     StreamContext = CompletionContext;
@@ -1448,7 +1446,7 @@ PocPostCloseOperation(
 
         //Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 
-        Status = PocFlushOriginalCache(FltObjects, StreamContext->FileName);
+        Status = PocFlushOriginalCache(FltObjects->Instance, StreamContext->FileName);
 
 
         Status = PocAppendEncTailerToFile(FltObjects, StreamContext);

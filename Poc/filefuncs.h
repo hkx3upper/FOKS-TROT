@@ -4,6 +4,7 @@
 #include "context.h"
 #include "utils.h"
 
+
 typedef struct _POC_ENCRYPTION_HEADER
 {
 	CHAR Flag[32];
@@ -57,16 +58,12 @@ NTSTATUS PocAppendEncTailerToFile(
 	IN PCFLT_RELATED_OBJECTS FltObjects,
 	IN PPOC_STREAM_CONTEXT StreamContext);
 
-NTSTATUS PocAppendEncTailerToFileEx(
-	IN PCFLT_RELATED_OBJECTS FltObjects,
-	IN PPOC_STREAM_CONTEXT StreamContext);
-
 NTSTATUS PocNtfsFlushAndPurgeCache(
 	IN PFLT_INSTANCE Instance,
 	IN PFILE_OBJECT FileObject);
 
 NTSTATUS PocFlushOriginalCache(
-	IN PCFLT_RELATED_OBJECTS FltObjects,
+	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName);
 
 NTSTATUS PocReentryToEncrypt(
@@ -76,5 +73,3 @@ NTSTATUS PocReentryToEncrypt(
 NTSTATUS PocReentryToDecrypt(
 	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName);
-
-#pragma alloc_text(PAGE, PocReadFileNoCache)

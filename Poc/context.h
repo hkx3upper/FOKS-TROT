@@ -77,9 +77,9 @@ NTSTATUS
 PocFindOrCreateStreamContext(
     IN PFLT_INSTANCE Instance,
     IN PFILE_OBJECT FileObject,
-    _In_ BOOLEAN CreateIfNotFound,
-    _Outptr_ PPOC_STREAM_CONTEXT* StreamContext,
-    _Out_opt_ PBOOLEAN ContextCreated);
+    IN BOOLEAN CreateIfNotFound,
+    OUT PPOC_STREAM_CONTEXT* StreamContext,
+    OUT PBOOLEAN ContextCreated);
 
 NTSTATUS PocCreateStreamHandleContext(
     _Outptr_ PPOC_STREAMHANDLE_CONTEXT* StreamHandleContext);

@@ -43,16 +43,6 @@ NTSTATUS PocAesECBDecrypt_CiphertextStealing(
 	IN ULONG InBufferSize,
 	IN OUT PCHAR InOutBuffer);
 
-NTSTATUS PocStreamModeEncrypt(
-	IN PCHAR InBuffer,
-	IN ULONG InBufferSize,
-	IN OUT PCHAR InOutBuffer);
-
-NTSTATUS PocStreamModeDecrypt(
-	IN PCHAR InBuffer,
-	IN ULONG InBufferSize,
-	IN OUT PCHAR InOutBuffer);
-
 NTSTATUS PocComputeHash(
 	IN PUCHAR Data,
 	IN ULONG DataLength,

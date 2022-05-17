@@ -761,6 +761,14 @@ OB_PREOP_CALLBACK_STATUS PocPreObjectOperation(
 		if (FlagOn(OperationInformation->Parameters->CreateHandleInformation.OriginalDesiredAccess,
 			PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE))
 		{
+			/*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+				("%s->Handle create ProcessId = %I64d ProcessName = %ws RequestProcessId = %I64d Kernel = %d access denied.\n",
+					__FUNCTION__,
+					(LONGLONG)ProcessId,
+					NULL != OutProcessInfo->OwnedProcessRule ?
+					OutProcessInfo->OwnedProcessRule->ProcessName : NULL,
+					(LONGLONG)RequestProcessId,
+					OperationInformation->KernelHandle));*/
 		}
 
 	}
@@ -785,6 +793,14 @@ OB_PREOP_CALLBACK_STATUS PocPreObjectOperation(
 		if (FlagOn(OperationInformation->Parameters->CreateHandleInformation.OriginalDesiredAccess,
 			PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE))
 		{
+			/*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+				("%s->Handle duplicate ProcessId = %I64d ProcessName = %ws RequestProcessId = %I64d Kernel = %d access denied.\n",
+					__FUNCTION__,
+					(LONGLONG)ProcessId,
+					NULL != OutProcessInfo->OwnedProcessRule ?
+					OutProcessInfo->OwnedProcessRule->ProcessName : NULL,
+					(LONGLONG)RequestProcessId,
+					OperationInformation->KernelHandle));*/
 		}
 			
 	}
@@ -891,6 +907,15 @@ VOID PocProcessNotifyRoutineEx(
 
 		OutProcessInfo->ProcessId = ProcessId;
 
+		/*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+			("%s->Add ProcessName = %ws ProcessId = %I64d Access = %d success.\n",
+				__FUNCTION__,
+				uProcessName->Buffer,
+				(LONGLONG)ProcessId,
+				OutProcessRules->Access));*/
+
+
+		
 	}
 
 EXIT:
@@ -1013,14 +1038,14 @@ NTSTATUS PocProcessInit()
 	}
 
 
-	Status = PocProcessObjectCallbackInit();
+	/*Status = PocProcessObjectCallbackInit();
 
 	if (STATUS_SUCCESS != Status)
 	{
 		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
 			("%s->PocProcessObjectCallbackInit failed. Status = 0x%x.", __FUNCTION__, Status));
 		goto EXIT;
-	}
+	}*/
 	
 
 	Status = PsSetCreateProcessNotifyRoutineEx(
@@ -1142,7 +1167,7 @@ NTSTATUS PocProcessInit()
 		OutProcessInfo->ProcessId = ProcessInfo->UniqueProcessId;
 
 		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-			("%s->Add ProcessName = %ws ProcessId = %I64d Access = %u success.\n",
+			("%s->Add ProcessName = %ws ProcessId = %I64d Access = %d success.\n",
 				__FUNCTION__,
 				uProcessName->Buffer,
 				(LONGLONG)ProcessInfo->UniqueProcessId,

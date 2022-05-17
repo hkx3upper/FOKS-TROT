@@ -241,64 +241,28 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 */
 {
 
-	const static PWCHAR allowed_extension[] = { L"txt",
-											   L"docx",
-											   L"doc",
-											   L"xlsx",
-											   L"xls",
-											   L"pptx",
-											   L"ppt",
-											   L"txt",
-											   L"PNG",
-											   L"JPG",
-											   NULL };
-
 	if (NULL == FileExtension)
 	{
 		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocBypassIrrelevantFileExtension->FileExtension is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	const PWCHAR* p = allowed_extension;
-	while (*p)
-	{
-		if (0 == _wcsicmp(FileExtension, *p))
-		{
-			break;
-		}
-		p++;
-	}
-	if (*p)
-	{
-		return POC_IS_TARGET_FILE_EXTENSION;
-	}
-	else
-	{
-		return POC_IRRELEVENT_FILE_EXTENSION;
-	}
-
-	/*if (NULL == FileExtension)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocBypassIrrelevantFileExtension->FileExtension is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	if (wcsncmp(FileExtension, L"txt", wcslen(L"txt")) != 0 &&
-		wcsncmp(FileExtension, L"docx", wcslen(L"docx")) != 0 &&
-		wcsncmp(FileExtension, L"doc", wcslen(L"doc")) != 0 &&
-		wcsncmp(FileExtension, L"pptx", wcslen(L"pptx")) != 0 &&
-		wcsncmp(FileExtension, L"ppt", wcslen(L"ppt")) != 0 &&
-		wcsncmp(FileExtension, L"xlsx", wcslen(L"xlsx")) != 0 &&
-		wcsncmp(FileExtension, L"xls", wcslen(L"xls")) != 0 &&
-		wcsncmp(FileExtension, L"PNG", wcslen(L"PNG")) != 0 &&
-		wcsncmp(FileExtension, L"JPG", wcslen(L"JPG")) != 0)
+	if (_wcsnicmp(FileExtension, L"txt", wcslen(L"txt")) != 0 &&
+		_wcsnicmp(FileExtension, L"docx", wcslen(L"docx")) != 0 &&
+		_wcsnicmp(FileExtension, L"doc", wcslen(L"doc")) != 0 &&
+		_wcsnicmp(FileExtension, L"pptx", wcslen(L"pptx")) != 0 &&
+		_wcsnicmp(FileExtension, L"ppt", wcslen(L"ppt")) != 0 &&
+		_wcsnicmp(FileExtension, L"xlsx", wcslen(L"xlsx")) != 0 &&
+		_wcsnicmp(FileExtension, L"xls", wcslen(L"xls")) != 0/* &&
+		_wcsnicmp(FileExtension, L"PNG", wcslen(L"PNG")) != 0 &&
+		_wcsnicmp(FileExtension, L"JPG", wcslen(L"JPG")) != 0*/)
 	{
 		return POC_IRRELEVENT_FILE_EXTENSION;
 	}
 	else
 	{
 		return POC_IS_TARGET_FILE_EXTENSION;
-	}*/
+	}
 
 }
 
@@ -517,83 +481,6 @@ EXIT:
 	{
 		ExFreePool(uDosName.Buffer);
 		uDosName.Buffer = NULL;
-	}
-
-	return Status;
-}
-
-
-VOID PocApcKernelRoutine(
-	PKAPC Apc,
-	PKNORMAL_ROUTINE* NormalRoutine,
-	PVOID* NormalContext,
-	PVOID* SystemArgument1,
-	PVOID* SystemArgument2
-)
-{
-	UNREFERENCED_PARAMETER(NormalRoutine);
-	UNREFERENCED_PARAMETER(NormalContext);
-	UNREFERENCED_PARAMETER(SystemArgument1);
-	UNREFERENCED_PARAMETER(SystemArgument2);
-
-	ExFreePoolWithTag(Apc, POC_KAPC_BUFFER_TAG);
-}
-
-
-NTSTATUS PocInjectApc(
-	IN PKTHREAD Thread,
-	IN KPROCESSOR_MODE ApcMode,
-	IN PKNORMAL_ROUTINE NormalRoutine,
-	IN PVOID NormalContext,
-	IN PVOID SystemArgument1,
-	IN PVOID SystemArgument2)
-{
-	if (NULL == Thread)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Thread is null.\n", __FUNCTION__));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	NTSTATUS Status = 0;
-	PKAPC Apc = NULL;
-
-	Apc = ExAllocatePoolWithTag(NonPagedPool, sizeof(KAPC), POC_KAPC_BUFFER_TAG);
-
-	if (NULL == Apc)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag Apc failed.\n", __FUNCTION__));
-		Status = STATUS_INSUFFICIENT_RESOURCES;
-		goto EXIT;
-	}
-
-	RtlZeroMemory(Apc, sizeof(KAPC));
-
-	KeInitializeApc(
-		Apc,
-		Thread,
-		OriginalApcEnvironment,
-		PocApcKernelRoutine,
-		NULL,
-		NormalRoutine,
-		ApcMode,
-		NormalContext);
-
-	if (!KeInsertQueueApc(Apc, SystemArgument1, SystemArgument2, 0))
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->KeInsertQueueApc failed.\n", __FUNCTION__));
-		Status = STATUS_UNSUCCESSFUL;
-		goto EXIT;
-	}
-
-	Status = STATUS_SUCCESS;
-	return Status;
-
-EXIT:
-
-	if (NULL != Apc)
-	{
-		ExFreePoolWithTag(Apc, POC_KAPC_BUFFER_TAG);
-		Apc = NULL;
 	}
 
 	return Status;

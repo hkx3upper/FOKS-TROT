@@ -90,12 +90,21 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject &&
 			NULL == StreamContext->ShadowSectionObjectPointers->SharedCacheMap)
 		{
-			ExFreePoolWithTag(StreamContext->ShadowSectionObjectPointers, POC_STREAM_CONTEXT_TAG);
-			StreamContext->ShadowSectionObjectPointers = NULL;
+			ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws ExFreePoolWithTag1 SectionObjectPointers success.\n", 
-				__FUNCTION__, 
-				StreamContext->FileName));
+			if (NULL != StreamContext->ShadowSectionObjectPointers)
+			{
+				ExFreePoolWithTag(StreamContext->ShadowSectionObjectPointers, POC_STREAM_CONTEXT_TAG);
+				StreamContext->ShadowSectionObjectPointers = NULL;
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws ExFreePoolWithTag1 SectionObjectPointers success.\n",
+					__FUNCTION__,
+					StreamContext->FileName));
+			}
+
+			ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+			
+			
 			Status = STATUS_SUCCESS;
 		}
 		else

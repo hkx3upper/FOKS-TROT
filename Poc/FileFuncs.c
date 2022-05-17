@@ -127,9 +127,7 @@ NTSTATUS PocReadFileNoCache(
         readLength, 
         ReadBuffer,
         FLTFL_IO_OPERATION_NON_CACHED | 
-        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET | 
-        FLTFL_IO_OPERATION_PAGING | 
-        FLTFL_IO_OPERATION_SYNCHRONOUS_PAGING, 
+        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET, 
         BytesRead, 
         NULL, 
         NULL, 
@@ -500,10 +498,7 @@ NTSTATUS PocCreateFileForEncTailer(
 
         Status = POC_FILE_HAS_ENCRYPTION_TAILER;
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s@%s@%d: %s->File %ws has encryption tailer FileSize = %u ProcessName = %ws.\n",
-            __FUNCTION__,
-            __FILE__,
-            __LINE__,
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->File %ws has encryption tailer FileSize = %d ProcessName = %ws.\n",
             __FUNCTION__,
             StreamContext->FileName,
             FileSize,
@@ -701,108 +696,6 @@ EXIT:
 }
 
 
-NTSTATUS PocAppendEncTailerToFileEx(
-    IN PCFLT_RELATED_OBJECTS FltObjects,
-    IN PPOC_STREAM_CONTEXT StreamContext)
-{
-    if (NULL == StreamContext)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext is NULL.\n", __FUNCTION__));
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    if (NULL == StreamContext->FileName)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext->FileName is NULL.\n", __FUNCTION__));
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    NTSTATUS Status = STATUS_UNSUCCESSFUL;
-
-    PPOC_VOLUME_CONTEXT VolumeContext = NULL;
-
-
-    ULONG FileSize = 0;
-    LARGE_INTEGER ByteOffset = { 0 };
-    ULONG WriteLength = 0;
-    PCHAR WriteBuffer = NULL;
-    ULONG BytesWritten = 0;
-
-
-
-    Status = FltGetVolumeContext(gFilterHandle, FltObjects->Volume, &VolumeContext);
-
-    if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x\n", __FUNCTION__, Status));
-        goto EXIT;
-    }
-
-
-
-    FileSize = StreamContext->FileSize;
-
-    WriteLength = ROUND_TO_SIZE(PAGE_SIZE, VolumeContext->SectorSize);
-
-    WriteBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, WriteLength, WRITE_BUFFER_TAG);
-
-    if (NULL == WriteBuffer)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__));
-        Status = STATUS_UNSUCCESSFUL;
-        goto EXIT;
-    }
-
-    RtlZeroMemory(WriteBuffer, WriteLength);
-
-    ByteOffset.LowPart = ROUND_TO_SIZE(FileSize, VolumeContext->SectorSize);
-
-    RtlMoveMemory(WriteBuffer, &EncryptionTailer, sizeof(POC_ENCRYPTION_TAILER));
-
-    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileSize = StreamContext->FileSize;;
-    ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->IsCipherText = StreamContext->IsCipherText;
-    RtlMoveMemory(((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
-
-    Status = FltWriteFileEx(
-        FltObjects->Instance,
-        FltObjects->FileObject,
-        &ByteOffset,
-        WriteLength,
-        WriteBuffer,
-        FLTFL_IO_OPERATION_NON_CACHED |
-        FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
-        &BytesWritten,
-        NULL,
-        NULL,
-        NULL,
-        NULL);
-
-    if (!NT_SUCCESS(Status))
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltWriteFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
-        goto EXIT;
-    }
-
-
-EXIT:
-
-    if (NULL != VolumeContext)
-    {
-        FltReleaseContext(VolumeContext);
-        VolumeContext = NULL;
-    }
-
-
-    if (NULL != WriteBuffer)
-    {
-        FltFreePoolAlignedWithTag(FltObjects->Instance, WriteBuffer, WRITE_BUFFER_TAG);
-        WriteBuffer = NULL;
-    }
-
-    return Status;
-}
-
-
 NTSTATUS PocNtfsFlushAndPurgeCache(
     IN PFLT_INSTANCE Instance,
     IN PFILE_OBJECT FileObject)
@@ -835,7 +728,7 @@ NTSTATUS PocNtfsFlushAndPurgeCache(
     Data->Iopb->MinorFunction = IRP_MN_FLUSH_AND_PURGE;
     Data->Iopb->IrpFlags = IRP_SYNCHRONOUS_API;
     FltPerformSynchronousIo(Data);
-
+    
     FltFreeCallbackData(Data);
 
     return Data->IoStatus.Status;
@@ -843,9 +736,15 @@ NTSTATUS PocNtfsFlushAndPurgeCache(
 
 
 NTSTATUS PocFlushOriginalCache(
-    IN PCFLT_RELATED_OBJECTS FltObjects,
+    IN PFLT_INSTANCE Instance,
     IN PWCHAR FileName)
 {
+    if (NULL == Instance)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Instance is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
     if (NULL == FileName)
     {
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
@@ -868,7 +767,7 @@ NTSTATUS PocFlushOriginalCache(
 
     Status = FltCreateFileEx(
         gFilterHandle,
-        FltObjects->Instance,
+        Instance,
         &hFile,
         &FileObject,
         0,
@@ -891,7 +790,7 @@ NTSTATUS PocFlushOriginalCache(
 
     if (CcIsFileCached(FileObject))
     {
-        Status = FltFlushBuffers(FltObjects->Instance, FileObject);
+        Status = FltFlushBuffers(Instance, FileObject);
 
         if (STATUS_SUCCESS != Status)
         {
@@ -1212,10 +1111,7 @@ NTSTATUS PocReentryToEncrypt(
         goto EXIT;
     }
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s@%s@%d: %s->success. FileName = %ws FileSize = %u.\n",
-        __FUNCTION__,
-        __FILE__,
-        __LINE__,
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->success. FileName = %ws FileSize = %d.\n",
         __FUNCTION__,
         FileName,
         ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));
@@ -1496,6 +1392,7 @@ NTSTATUS PocReentryToDecrypt(
     
 
     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %u.\n\n",
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->success. FileName = %ws FileSize = %d.\n\n",
         __FUNCTION__,
         FileName,
         ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.LowPart));

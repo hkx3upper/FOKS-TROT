@@ -428,60 +428,6 @@ EXIT:
 }
 
 
-NTSTATUS PocStreamModeEncrypt(
-	IN PCHAR InBuffer,
-	IN ULONG InBufferSize,
-	IN OUT PCHAR InOutBuffer)
-{
-
-	if (NULL == InBuffer)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeEncrypt->InBuffer is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	if (NULL == InOutBuffer)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeEncrypt->InOutBuffer is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	for (ULONG i = 0; i < InBufferSize; i++) 
-	{
-		*(InOutBuffer + i) = *(InBuffer + i) ^ 0x77;
-	}
-
-	return STATUS_SUCCESS;
-}
-
-
-NTSTATUS PocStreamModeDecrypt(
-	IN PCHAR InBuffer,
-	IN ULONG InBufferSize,
-	IN OUT PCHAR InOutBuffer)
-{
-
-	if (NULL == InBuffer)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeDecrypt->InBuffer is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	if (NULL == InOutBuffer)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocStreamModeDecrypt->InOutBuffer is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	for (ULONG i = 0; i < InBufferSize; i++)
-	{
-		*(InOutBuffer + i) = *(InBuffer + i) ^ 0x77;
-	}
-
-	return STATUS_SUCCESS;
-}
-
-
 NTSTATUS PocComputeHash(
 	IN PUCHAR Data, 
 	IN ULONG DataLength, 

@@ -42,7 +42,7 @@ PocPreWriteOperation(
 
     PPOC_VOLUME_CONTEXT VolumeContext = NULL;
     ULONG SectorSize = 0;
-
+    
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
     
     ByteCount = Data->Iopb->Parameters.Write.Length;
@@ -99,9 +99,16 @@ PocPreWriteOperation(
     Status = PocGetProcessName(Data, ProcessName);
 
 
+    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //    Data->Iopb->Parameters.Write.ByteOffset.LowPart,
+    //    Data->Iopb->Parameters.Write.Length,
+    //    ProcessName, StreamContext->FileName,
+    //    NonCachedIo,
+    //    PagingIo));
+
     if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %u ProcessName = %ws File = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %d ProcessName = %ws File = %ws.\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
@@ -111,7 +118,7 @@ PocPreWriteOperation(
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
         && NonCachedIo)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %u ProcessName = %ws File = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %d ProcessName = %ws File = %ws.\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
 
         Data->IoStatus.Status = STATUS_SUCCESS;
@@ -136,7 +143,34 @@ PocPreWriteOperation(
     RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
 
 
-    if (NonCachedIo)
+    if (!NonCachedIo)
+    {
+        if (FileSize < AES_BLOCK_SIZE)
+        {
+
+            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+            StreamContext->FileSize = Data->Iopb->Parameters.Write.Length;
+            
+            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+            Status = PocSetEndOfFileInfo(
+                FltObjects->Instance, 
+                FltObjects->FileObject, 
+                AES_BLOCK_SIZE);
+
+            if (STATUS_SUCCESS != Status)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSetEndOfFileInfo failed.\n", __FUNCTION__));
+                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+                Data->IoStatus.Information = 0;
+                Status = FLT_PREOP_COMPLETE;
+                goto ERROR;
+            }
+        }
+
+    }
+    else if (NonCachedIo)
     {
 
         Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
@@ -155,6 +189,8 @@ PocPreWriteOperation(
             VolumeContext = NULL;
         }
 
+
+
         //LengthReturned是本次Write真正需要写的数据
         if (!PagingIo || FileSize >= StartingVbo + ByteCount)
         {
@@ -165,7 +201,7 @@ PocPreWriteOperation(
             LengthReturned = FileSize - StartingVbo;
         }
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %u.\n", LengthReturned));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %d.\n", LengthReturned));
         
         if (Data->Iopb->Parameters.Write.MdlAddress != NULL) 
         {
@@ -238,13 +274,28 @@ PocPreWriteOperation(
 
         try 
         {
-
-            if (FileSize < AES_BLOCK_SIZE)
+            if (StreamContext->FileSize < AES_BLOCK_SIZE)
             {
                 /*
-                * 文件小于一个块，采用流式加密
+                * 文件大小小于块大小
                 */
-                PocStreamModeEncrypt(OrigBuffer, LengthReturned, NewBuffer);
+
+                LengthReturned = AES_BLOCK_SIZE;
+
+                Status = PocAesECBEncrypt(
+                    OrigBuffer,
+                    LengthReturned,
+                    NewBuffer,
+                    &LengthReturned);
+
+                if (STATUS_SUCCESS != Status)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->PocAesECBEncrypt2 failed.\n"));
+                    Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+                    Data->IoStatus.Information = 0;
+                    Status = FLT_PREOP_COMPLETE;
+                    goto ERROR;
+                }
 
             }
             else if ((FileSize > StartingVbo + ByteCount) && 
@@ -420,7 +471,7 @@ PocPreWriteOperation(
         }
 
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %u Length = %u ProcessName = %ws File = %ws.\n\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
             Data->Iopb->Parameters.Write.ByteOffset.LowPart,
             LengthReturned,
             ProcessName,
@@ -497,8 +548,10 @@ PocPostWriteOperation(
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.LowPart;
-
+    if (StreamContext->FileSize >= AES_BLOCK_SIZE)
+    {
+        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.LowPart;
+    }
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
     if (0 != SwapBufferContext->OriginalLength)
