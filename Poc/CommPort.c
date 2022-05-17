@@ -256,7 +256,7 @@ NTSTATUS PocMessageNotifyCallback(
 					DosProcessName,
 					wcslen(DosProcessName));
 
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add process rules success. DosProcessName = %ws Access = %u.\n", __FUNCTION__,
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add process rules success. DosProcessName = %ws Access = %d.\n", __FUNCTION__,
 					ProcessRules->ProcessName,
 					ProcessRules->Access));
 
