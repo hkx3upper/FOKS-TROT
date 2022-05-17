@@ -4,7 +4,6 @@
 #include "context.h"
 #include "utils.h"
 
-
 typedef struct _POC_ENCRYPTION_HEADER
 {
 	CHAR Flag[32];
