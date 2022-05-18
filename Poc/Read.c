@@ -1,4 +1,4 @@
-
+ï»¿
 
 #include "read.h"
 #include "context.h"
@@ -8,378 +8,508 @@
 #include "filefuncs.h"
 #include "process.h"
 
+FLT_POSTOP_CALLBACK_STATUS
+PocPostReadOperationWhenSafe(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags);
+
+NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
+                            _In_ PCFLT_RELATED_OBJECTS FltObjects,
+                            PVOID OrigBuffer,
+                            PPOC_SWAP_BUFFER_CONTEXT *Context);
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreReadOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
-    _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
-)
+    _Flt_CompletionContext_Outptr_ PVOID *CompletionContext)
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
+    *CompletionContext = NULL;
 
     NTSTATUS Status;
+    FLT_PREOP_CALLBACK_STATUS ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
 
-    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
-    BOOLEAN NonCachedIo = FALSE;
-    BOOLEAN PagingIo = FALSE;
+    BOOLEAN NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
 
-    ULONG StartingVbo = 0, ByteCount = 0;
+    ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
+    ULONG len_read = Data->Iopb->Parameters.Read.Length; //ä»¥å­—èŠ‚ä¸ºå•ä½
 
     PCHAR NewBuffer = NULL;
     PMDL NewMdl = NULL;
 
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
 
-    ByteCount = Data->Iopb->Parameters.Read.Length;
-
-    NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
-    PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
-
-
-    if (0 == ByteCount)
+    if (0 == len_read)
     {
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
-
-
-    Status = PocFindOrCreateStreamContext(
-        Data->Iopb->TargetInstance,
-        Data->Iopb->TargetFileObject,
-        FALSE,
-        &StreamContext,
-        &ContextCreated);
-
-    if (STATUS_SUCCESS != Status)
+    else
     {
-        if (STATUS_NOT_FOUND != Status && !FsRtlIsPagingFile(Data->Iopb->TargetFileObject))      
-        /*
-        * ËµÃ÷²»ÊÇÄ¿±êÀ©Õ¹ÎÄ¼þ£¬ÔÚCreateÖÐÃ»ÓÐ´´½¨StreamContext£¬²»ÈÏÎªÊÇ¸ö´íÎó
-        * »òÕßÊÇÒ»¸öPaging file£¬ÕâÀï»á·µ»Ø0xc00000bb£¬
-        * Ô­ÒòÊÇFcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS±»ÇåµôÁË
-        * 
-        //
-        //  To make FAT match the present functionality of NTFS, disable
-        //  stream contexts on paging files
-        //
+        // TODO round_to_size
+    }
 
-        if (IsPagingFile) {
-            SetFlag( Fcb->Header.Flags2, FSRTL_FLAG2_IS_PAGING_FILE );
-            ClearFlag( Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS );
-        }
-        */
+    {
+        Status = PocGetProcessName(Data, ProcessName);
+        if (STATUS_SUCCESS != Status)
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
-                __FUNCTION__,
-                Status));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocGetProcessName failed\n", __FUNCTION__, __FILE__, __LINE__));
+            goto ERROR;
         }
-        
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto ERROR;
-    }
+        WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
+        Status = PocGetFileNameOrExtension(Data, NULL, FileName);
 
-    Status = PocGetProcessName(Data, ProcessName);
-
-    if (!StreamContext->IsCipherText)
-    {
-        //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->leave. File is plaintext.\n"));
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto ERROR;
-    }
-
-    
-    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreReadOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
-    //    Data->Iopb->Parameters.Read.ByteOffset.LowPart,
-    //    Data->Iopb->Parameters.Read.Length,
-    //    ProcessName, StreamContext->FileName,
-    //    NonCachedIo,
-    //    PagingIo));
-    
-
-    StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
-
-    if (StartingVbo >= StreamContext->FileSize)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws read end of file.\n", ProcessName));
-        Data->IoStatus.Status = STATUS_END_OF_FILE;
-        Data->IoStatus.Information = 0;
-
-        Status = FLT_PREOP_COMPLETE;
-        goto ERROR;
-    }
-
-    if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %d. NewLength = %d\n", 
-            ProcessName, 
-            Data->Iopb->Parameters.Read.Length,
-            StreamContext->FileSize - StartingVbo));
-        Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
-        FltSetCallbackDataDirty(Data);
-    }
-
-    SwapBufferContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(POC_SWAP_BUFFER_CONTEXT), READ_BUFFER_TAG);
-
-    if (NULL == SwapBufferContext)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
-        Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        Data->IoStatus.Information = 0;
-        Status = FLT_PREOP_COMPLETE;
-        goto ERROR;
-    }
-
-    RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
-
-    if (FltObjects->FileObject->SectionObjectPointer
-        == StreamContext->ShadowSectionObjectPointers)
-    {
-        SwapBufferContext->StreamContext = StreamContext;
-        *CompletionContext = SwapBufferContext;
-        Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
-        goto EXIT;
-    }
-
-
-    if (NonCachedIo && StreamContext->IsCipherText)
-    {
-        NewBuffer = FltAllocatePoolAlignedWithTag(FltObjects->Instance, NonPagedPool, ByteCount, READ_BUFFER_TAG);
-
-        if (NULL == NewBuffer)
+        if (wcsstr(ProcessName, L"Video.UI.exe") != NULL && wcsstr(FileName, L"mp4") != NULL)
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
-            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-            Data->IoStatus.Information = 0;
-            Status = FLT_PREOP_COMPLETE;
+            int a = 0;
+            a = 1;
+        }
+    }
+
+    { // Find StreamContext
+        Status = PocFindOrCreateStreamContext(
+            Data->Iopb->TargetInstance,
+            Data->Iopb->TargetFileObject,
+            FALSE,
+            &StreamContext,
+            &ContextCreated);
+
+        if (STATUS_SUCCESS != Status)
+        {
+            if (STATUS_NOT_FOUND != Status && !FsRtlIsPagingFile(Data->Iopb->TargetFileObject))
+            /*
+            * è¯´æ˜Žä¸æ˜¯ç›®æ ‡æ‰©å±•æ–‡ä»¶ï¼Œåœ¨Createä¸­æ²¡æœ‰åˆ›å»ºStreamContextï¼Œä¸è®¤ä¸ºæ˜¯ä¸ªé”™è¯¯
+            * æˆ–è€…æ˜¯ä¸€ä¸ªPaging fileï¼Œè¿™é‡Œä¼šè¿”å›ž0xc00000bbï¼Œ
+            * åŽŸå› æ˜¯Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTSè¢«æ¸…æŽ‰äº†
+            *
+            //
+            //  To make FAT match the present functionality of NTFS, disable
+            //  stream contexts on paging files
+            //
+
+            if (IsPagingFile) {
+                SetFlag( Fcb->Header.Flags2, FSRTL_FLAG2_IS_PAGING_FILE );
+                ClearFlag( Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS );
+            }
+            */
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
+                                                    __FUNCTION__,
+                                                    Status));
+            }
+
+            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
             goto ERROR;
         }
 
-        RtlZeroMemory(NewBuffer, ByteCount);
-
-
-        if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
+        if (!StreamContext->IsCipherText) //ä¸æ˜¯å¯†æ–‡æ–‡ä»¶
         {
-
-            NewMdl = IoAllocateMdl(NewBuffer, ByteCount, FALSE, FALSE, NULL);
-
-            if (NewMdl == NULL)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_PREOP_COMPLETE;
-                goto ERROR;
-            }
-
-            MmBuildMdlForNonPagedPool(NewMdl);
+            // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->leave. File is plaintext.\n"));
+            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+            goto ERROR;
         }
 
-        SwapBufferContext->NewBuffer = NewBuffer;
-        SwapBufferContext->NewMdl = NewMdl;
+        if (StartingVbo >= StreamContext->FileSize) //æ–‡ä»¶å¤§å°å°äºŽè¯»å–çš„èµ·å§‹ä½ç½®
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws read end of file.\n", ProcessName));
+            Data->IoStatus.Status = STATUS_END_OF_FILE;
+            Data->IoStatus.Information = 0;
+
+            ret_status = FLT_PREOP_COMPLETE; //	The minifilter driver is completing the I/O operation. The filter manager does not send the I/O operation to any minifilter drivers below the caller in the driver stack or to the file system
+            goto ERROR;
+        }
+    }
+
+    {
+        if (!NonCachedIo)
+        {
+            if (StartingVbo + len_read > StreamContext->FileSize)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n",
+                                                    ProcessName,
+                                                    Data->Iopb->Parameters.Read.Length,
+                                                    StreamContext->FileSize - StartingVbo));
+                Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
+                len_read = Data->Iopb->Parameters.Read.Length;
+                FltSetCallbackDataDirty(Data);
+            }
+
+            // CachedIo ä¸éœ€è¦æ‰§è¡ŒPostRead, ä¹Ÿä¸éœ€è¦åˆ›å»ºswappedbuffer
+            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+            goto ERROR;
+        }
+    }
+
+    { //åˆ›å»ºäº¤æ¢ç¼“å†²åŒº
+        SwapBufferContext = (PPOC_SWAP_BUFFER_CONTEXT)ExAllocatePoolWithTag(NonPagedPool,
+                                                                            sizeof(POC_SWAP_BUFFER_CONTEXT),
+                                                                            READ_BUFFER_TAG);
+
+        if (NULL == SwapBufferContext)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+            ret_status = FLT_PREOP_COMPLETE;
+            goto ERROR;
+        }
+        RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
+
         SwapBufferContext->StreamContext = StreamContext;
         *CompletionContext = SwapBufferContext;
+        ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    }
 
-        Data->Iopb->Parameters.Read.ReadBuffer = NewBuffer;
-        Data->Iopb->Parameters.Read.MdlAddress = NewMdl;
-        FltSetCallbackDataDirty(Data);
-
-        Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    // å‚è€ƒPostCreateOperationä¸­çš„åšæ³•ï¼Œè¿™é‡Œè¯´æ˜Žæ˜¯éžæœºå¯†è¿›ç¨‹
+    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
+    {
+        //ä¸ºäº†éšè—æ–‡ä»¶æ ‡è¯†å°¾ï¼Œéœ€è¦æ‰§è¡ŒPostRead
         goto EXIT;
     }
 
-        
-    SwapBufferContext->StreamContext = StreamContext;
-    *CompletionContext = SwapBufferContext;
-    Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
-    goto EXIT;
+    // ä¸‹é¢çš„è¿‡ç¨‹éƒ½æ˜¯ FltObjects->FileObject->SectionObjectPointer != StreamContext->ShadowSectionObjectPointers
+    // ä¹Ÿå³æ˜¯åœ¨æœºå¯†è¿›ç¨‹ä¸­
+    { // NonCachedIo
+        if (NonCachedIo && StreamContext->IsCipherText)
+        {
+            NewBuffer = (PCHAR)FltAllocatePoolAlignedWithTag(FltObjects->Instance,
+                                                             NonPagedPool,
+                                                             len_read,
+                                                             READ_BUFFER_TAG);
 
+            if (NULL == NewBuffer)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
+                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                Data->IoStatus.Information = 0;
+                ret_status = FLT_PREOP_COMPLETE;
+                goto ERROR;
+            }
+
+            RtlZeroMemory(NewBuffer, len_read);
+
+            if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
+            {
+
+                NewMdl = IoAllocateMdl(NewBuffer, len_read, FALSE, FALSE, NULL);
+
+                if (NewMdl == NULL)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
+                    Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                    Data->IoStatus.Information = 0;
+                    ret_status = FLT_PREOP_COMPLETE;
+                    goto ERROR;
+                }
+
+                MmBuildMdlForNonPagedPool(NewMdl);
+            }
+
+            SwapBufferContext->NewBuffer = NewBuffer;
+            SwapBufferContext->NewMdl = NewMdl;
+
+            Data->Iopb->Parameters.Read.ReadBuffer = NewBuffer;
+            Data->Iopb->Parameters.Read.MdlAddress = NewMdl;
+            FltSetCallbackDataDirty(Data);
+
+            ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+            goto EXIT;
+        }
+    }
 ERROR:
-
-    if (NULL != StreamContext)
+    if (ret_status != FLT_PREOP_SUCCESS_WITH_CALLBACK)
     {
-        FltReleaseContext(StreamContext);
-        StreamContext = NULL;
-    }
+        if (NULL != StreamContext)
+        {
+            FltReleaseContext(StreamContext);
+            StreamContext = NULL;
+        }
 
-    if (NULL != SwapBufferContext)
-    {
-        ExFreePoolWithTag(SwapBufferContext, READ_BUFFER_TAG);
-        SwapBufferContext = NULL;
-    }
+        if (NULL != SwapBufferContext)
+        {
+            ExFreePoolWithTag(SwapBufferContext, READ_BUFFER_TAG);
+            SwapBufferContext = NULL;
+        }
 
-    if (NULL != NewBuffer)
-    {
-        FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, READ_BUFFER_TAG);
-        NewBuffer = NULL;
-    }
+        if (NULL != NewBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, READ_BUFFER_TAG);
+            NewBuffer = NULL;
+        }
 
-    if (NULL != NewMdl)
-    {
-        IoFreeMdl(NewMdl);
-        NewMdl = NULL;
-    }
+        if (NULL != NewMdl)
+        {
+            IoFreeMdl(NewMdl);
+            NewMdl = NULL;
+        }
 
+        *CompletionContext = NULL;
+    }
 EXIT:
 
-    return Status;
+    return ret_status;
 }
 
-
+// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nc-fltkernel-pflt_post_operation_callback
 FLT_POSTOP_CALLBACK_STATUS
 PocPostReadOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
-    _In_ FLT_POST_OPERATION_FLAGS Flags
-)
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(FltObjects);
-    UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
     ASSERT(CompletionContext != NULL);
     ASSERT(((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext != NULL);
 
-    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVOID OrigBuffer = NULL;
+    BOOLEAN clean_here = TRUE;
 
-    PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
-    PPOC_STREAM_CONTEXT StreamContext = NULL;
+    FLT_POSTOP_CALLBACK_STATUS ret_status = FLT_POSTOP_FINISHED_PROCESSING;
 
-    ULONG StartingVbo = 0, LengthReturned = 0, FileSize = 0;
-    BOOLEAN NonCachedIo = FALSE, PagingIo = FALSE;
-
-    PCHAR OrigBuffer = NULL, NewBuffer = NULL;
-    PMDL NewMdl = NULL;
-
-    LARGE_INTEGER byteOffset = { 0 };
-    ULONG readLength = 0;
-    PCHAR outReadBuffer = NULL;
-    ULONG bytesRead = 0;
-
-    PCHAR TempNewBuffer = NULL;
-    PCHAR TempOrigBuffer = NULL;
-
-    PPOC_VOLUME_CONTEXT VolumeContext = NULL;
-
-    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
-
-    SwapBufferContext = CompletionContext;
-    StreamContext = SwapBufferContext->StreamContext;
-
-    StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
-    FileSize = StreamContext->FileSize;
-
-    NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
-    PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
-
-
-    if (STATUS_SUCCESS == Data->IoStatus.Status)
     {
-        if (StartingVbo + Data->IoStatus.Information > FileSize)
-        {
-            Data->IoStatus.Information = FileSize - StartingVbo;
+        PPOC_STREAM_CONTEXT StreamContext = ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext;
+        { // éšè—æ–‡ä»¶æ ‡è¯†å°¾
+            ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
+            ULONG FileSize = StreamContext->FileSize;
+            if (STATUS_SUCCESS == Data->IoStatus.Status)
+            {
+                if (StartingVbo + Data->IoStatus.Information > FileSize)
+                {
+                    Data->IoStatus.Information = FileSize - StartingVbo;
+                }
+            }
+            else if (!NT_SUCCESS(Data->IoStatus.Status) || (Data->IoStatus.Information == 0))
+            {
+                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                goto EXIT;
+            }
+        }
+
+        { //éžæœºå¯†è¿›ç¨‹ï¼Œä¸éœ€è¦è§£å¯†
+            if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
+                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                goto EXIT;
+            }
         }
     }
-    else if (!NT_SUCCESS(Data->IoStatus.Status) || (Data->IoStatus.Information == 0))
+
+    if (FlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE)                                     // noncachedio
+        && ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext != NULL       // streamcontextä¸ä¸ºNULL
+        && ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext->IsCipherText // ciphertext
+    )
     {
-        Status = FLT_POSTOP_FINISHED_PROCESSING;
-        goto EXIT;
-    }
 
-
-
-    if (FltObjects->FileObject->SectionObjectPointer 
-        == StreamContext->ShadowSectionObjectPointers)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
-        Status = FLT_POSTOP_FINISHED_PROCESSING;
-        goto EXIT;
-    }
-
-
-    if (NonCachedIo && StreamContext->IsCipherText)
-    {
-        LengthReturned = (ULONG)Data->IoStatus.Information;
-
-        NewBuffer = SwapBufferContext->NewBuffer;
-        NewMdl = SwapBufferContext->NewMdl;
-
-        if (Data->Iopb->Parameters.Read.MdlAddress != NULL) 
+        if (Data->Iopb->Parameters.Read.MdlAddress != NULL)
         {
 
             FLT_ASSERT(((PMDL)Data->Iopb->Parameters.Read.MdlAddress)->Next == NULL);
 
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmgetsystemaddressformdlsafe
+            // This routine maps the physical pages that are described by the specified MDL into system address space, if they are not already mapped to system address space.
             OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
-                NormalPagePriority | MdlMappingNoExecute);
-
-            if (OrigBuffer == NULL) 
-            {
-
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Failed to get system address for MDL1: %p\n",
-                    Data->Iopb->Parameters.Read.MdlAddress));
-
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                goto EXIT;
-
-            }
-
-        }
-        else if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_SYSTEM_BUFFER) ||
-            FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION)) 
-        {
-            OrigBuffer = Data->Iopb->Parameters.Read.ReadBuffer;
-        }
-        else
-        {
-            PAGED_CODE();
-
-            Status = FltLockUserBuffer(Data);
-
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->FltLockUserBuffer failed. Status = 0x%X.\n"));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                goto EXIT;
-            }
-
-            OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
-                NormalPagePriority | MdlMappingNoExecute);
+                                                      NormalPagePriority | MdlMappingNoExecute);
 
             if (OrigBuffer == NULL)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Failed to get system address for MDL2: %p\n",
-                    Data->Iopb->Parameters.Read.MdlAddress));
+
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Failed to get system address for MDL1: %p\n",
+                                                    Data->Iopb->Parameters.Read.MdlAddress));
 
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
+                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
-
+            }
+        }
+        else if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_SYSTEM_BUFFER) ||
+                 FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+        {
+            OrigBuffer = (PCHAR)Data->Iopb->Parameters.Read.ReadBuffer;
+        }
+        else
+        {
+            if (FltDoCompletionProcessingWhenSafe(Data,
+                                                  FltObjects,
+                                                  CompletionContext,
+                                                  Flags,
+                                                  PocPostReadOperationWhenSafe,
+                                                  &ret_status))
+            {
+                clean_here = FALSE;
+            }
+            else
+            {
+                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                Data->IoStatus.Information = 0;
+                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
             }
 
+            goto EXIT;
         }
-
-
-        try
         {
+            PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
+            PocPostReadDecrypt(Data, FltObjects, OrigBuffer, &tmp);
+            CompletionContext = tmp;
+        }
+    }
+    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+
+EXIT:
+
+    if (CompletionContext != NULL && clean_here)
+    {
+        PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
+        if (tmp->NewBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, tmp->NewBuffer, 'poc');
+            tmp->NewBuffer = NULL;
+        }
+        if (tmp->StreamContext)
+        {
+            FltReleaseContext(tmp->StreamContext);
+            tmp->StreamContext = NULL;
+        }
+        CompletionContext = NULL;
+    }
+
+    return ret_status;
+}
+
+FLT_POSTOP_CALLBACK_STATUS
+PocPostReadOperationWhenSafe(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
+/*++
+
+Routine Description:
+
+    We had an arbitrary users buffer without a MDL so we needed to get
+    to a safe IRQL so we could lock it and then copy the data.
+
+Arguments:
+
+    Data - Pointer to the filter callbackData that is passed to us.
+
+    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
+        opaque handles to this filter, instance, its associated volume and
+        file object.
+
+    CompletionContext - Contains state from our PreOperation callback
+
+    Flags - Denotes whether the completion is successful or is being drained.
+
+Return Value:
+
+    FLT_POSTOP_FINISHED_PROCESSING - This is always returned.
+
+--*/
+{
+    PFLT_IO_PARAMETER_BLOCK iopb = Data->Iopb;
+    PVOID origBuf = NULL;
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(FltObjects);
+    UNREFERENCED_PARAMETER(Flags);
+    FLT_ASSERT(Data->IoStatus.Information != 0);
+
+    // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltlockuserbuffer
+    // <= APC_LEVEL
+    // FltLockUserBuffer sets the MdlAddress (or OutputMdlAddress) member in the callback data parameter structure (FLT_PARAMETERS) to point to the MDL for the locked pages. If there is no MDL, FltLockUserBuffer allocates one.
+    status = FltLockUserBuffer(Data); // ä¸éœ€è¦ä½¿ç”¨è€…æ‰‹åŠ¨é‡Šæ”¾
+
+    if (status != STATUS_SUCCESS)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: FltLockUserBuffer failed.\n", __FUNCTION__, __FILE__, __LINE__));
+        Data->IoStatus.Status = status;
+        Data->IoStatus.Information = 0;
+    }
+    else
+    {
+        // Get a system address for the buffer
+        origBuf = MmGetSystemAddressForMdlSafe(iopb->Parameters.Read.MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+        if (origBuf == NULL)
+        {
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+        }
+        else
+        {
+            // Here will always have a system buffer address.
+            PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
+            PocPostReadDecrypt(Data, FltObjects, origBuf, &tmp);
+            CompletionContext = tmp;
+        }
+    }
+
+    if (CompletionContext != NULL)
+    {
+        PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
+        if (tmp->NewBuffer)
+        {
+            FltFreePoolAlignedWithTag(FltObjects->Instance, tmp->NewBuffer, 'poc');
+            tmp->NewBuffer = NULL;
+        }
+        if (tmp->StreamContext)
+        {
+            FltReleaseContext(tmp->StreamContext);
+            tmp->StreamContext = NULL;
+        }
+    }
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
+                            _In_ PCFLT_RELATED_OBJECTS FltObjects,
+                            PVOID OrigBuffer,
+                            PPOC_SWAP_BUFFER_CONTEXT *Context)
+{
+    auto ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+
+    __try
+    {
+        ASSERT(Context);
+        PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = *Context;
+        ASSERT(SwapBufferContext);
+        PPOC_STREAM_CONTEXT StreamContext = SwapBufferContext->StreamContext;
+        ASSERT(StreamContext);
+
+        ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
+        ULONG LengthReturned = (ULONG)Data->IoStatus.Information; // This is set to a request-dependent value. For example, on successful completion of a transfer request, this is set to the number of bytes transferred. If a transfer request is completed with another STATUS_XXX, this member is set to zero.
+        ULONG FileSize = StreamContext->FileSize;
+
+        LARGE_INTEGER byteOffset = {0};
+        ULONG readLength = 0;
+        PCHAR outReadBuffer = NULL;
+        ULONG bytesRead = 0;
+
+        PCHAR TempNewBuffer = NULL;
+        PCHAR TempOrigBuffer = NULL;
+
+        PVOID NewBuffer = SwapBufferContext->NewBuffer;
+
+        PPOC_VOLUME_CONTEXT VolumeContext = NULL;
+
+        NTSTATUS Status;
+
+        __try
+        {
+
             if (FileSize < AES_BLOCK_SIZE)
             {
-                /*
-                * ÎÄ¼þÐ¡ÓÚÒ»¸ö¿é
-                */
-
                 LengthReturned = AES_BLOCK_SIZE;
 
                 Status = PocAesECBDecrypt(NewBuffer, LengthReturned, OrigBuffer, &LengthReturned);
@@ -390,17 +520,16 @@ PocPostReadOperation(
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
                     Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    __leave;
                 }
-
             }
-            else if ((FileSize > StartingVbo + LengthReturned) && 
-                    (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
+            else if ((FileSize > StartingVbo + LengthReturned) &&
+                     (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
             {
                 /*
-                * µ±ÎÄ¼þ´óÓÚÒ»¸ö¿é£¬Cache Manager½«Êý¾Ý·Ö¶à´Î¶ÁÈë»º³å£¬»òÕßÆäËûÒÔNonCachedIoÐÎÊ½
-                * ×îºóÒ»´Î¶ÁµÄÊý¾ÝÐ¡ÓÚÒ»¸ö¿éµÄÇé¿öÏÂ£¬ÏÖÔÚÔÚµ¹ÊýµÚ¶þ¸ö¿é×öÒ»ÏÂ´¦Àí
-                */
+                 * å½“æ–‡ä»¶å¤§äºŽä¸€ä¸ªå—ï¼ŒCache Managerå°†æ•°æ®åˆ†å¤šæ¬¡è¯»å…¥ç¼“å†²ï¼Œæˆ–è€…å…¶ä»–ä»¥NonCachedIoå½¢å¼
+                 * æœ€åŽä¸€æ¬¡è¯»çš„æ•°æ®å°äºŽä¸€ä¸ªå—çš„æƒ…å†µä¸‹ï¼ŒçŽ°åœ¨åœ¨å€’æ•°ç¬¬äºŒä¸ªå—åšä¸€ä¸‹å¤„ç†
+                 */
 
                 byteOffset.LowPart = StartingVbo + LengthReturned;
                 readLength = AES_BLOCK_SIZE;
@@ -419,38 +548,37 @@ PocPostReadOperation(
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocReadFileNoCache1 failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
                 bytesRead = FileSize - (StartingVbo + LengthReturned);
 
-                TempNewBuffer = ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempNewBuffer)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
-                RtlZeroMemory(TempNewBuffer, LengthReturned + bytesRead);
+                // RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + bytesRead);//æ— æ„ä¹‰
 
-                TempOrigBuffer= ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempOrigBuffer)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
-                RtlZeroMemory(TempOrigBuffer, LengthReturned + bytesRead);
-
+                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + bytesRead);
 
                 RtlMoveMemory(TempNewBuffer, NewBuffer, LengthReturned);
                 RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, bytesRead);
@@ -462,30 +590,29 @@ PocPostReadOperation(
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing1 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
                 RtlMoveMemory(OrigBuffer, TempOrigBuffer, LengthReturned);
-
             }
-            else if (FileSize > AES_BLOCK_SIZE && 
-                    LengthReturned < AES_BLOCK_SIZE)
+            else if (FileSize > AES_BLOCK_SIZE &&
+                     LengthReturned < AES_BLOCK_SIZE)
             {
                 /*
-                * µ±ÎÄ¼þ´óÓÚÒ»¸ö¿é£¬Cache Manager½«Êý¾Ý·Ö¶à´Î¶ÁÈë»º³å£¬»òÕßÆäËûÒÔNonCachedIoÐÎÊ½
-                * ×îºóÒ»´Î¶ÁµÄÊý¾ÝÐ¡ÓÚÒ»¸ö¿éÊ±
-                */
+                 * å½“æ–‡ä»¶å¤§äºŽä¸€ä¸ªå—ï¼ŒCache Managerå°†æ•°æ®åˆ†å¤šæ¬¡è¯»å…¥ç¼“å†²ï¼Œæˆ–è€…å…¶ä»–ä»¥NonCachedIoå½¢å¼
+                 * æœ€åŽä¸€æ¬¡è¯»çš„æ•°æ®å°äºŽä¸€ä¸ªå—æ—¶
+                 */
 
-                Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
+                Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, (PFLT_CONTEXT *)&VolumeContext);
 
                 if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
                 byteOffset.LowPart = StartingVbo - VolumeContext->SectorSize;
@@ -511,37 +638,37 @@ PocPostReadOperation(
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocReadFileNoCache2 failed. Status = 0x%x\n", Status));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
                 ASSERT(readLength == bytesRead);
 
-                TempNewBuffer = ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempNewBuffer)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempNewBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
-                RtlZeroMemory(TempNewBuffer, LengthReturned + bytesRead);
+                RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + bytesRead);
 
-                TempOrigBuffer = ExAllocatePoolWithTag(NonPagedPool, LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempOrigBuffer)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->ExAllocatePoolWithTag TempOrigBuffer failed.\n"));
                     Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
-                RtlZeroMemory(TempOrigBuffer, LengthReturned + bytesRead);
+                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + bytesRead);
 
                 RtlMoveMemory(TempNewBuffer, outReadBuffer, bytesRead);
                 RtlMoveMemory(TempNewBuffer + bytesRead, NewBuffer, LengthReturned);
@@ -553,111 +680,113 @@ PocPostReadOperation(
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
 
                 RtlMoveMemory(OrigBuffer, TempOrigBuffer + bytesRead, LengthReturned);
-
             }
             else if (LengthReturned % AES_BLOCK_SIZE != 0)
             {
                 /*
-                * µ±ÐèÒª¶ÁµÄÊý¾Ý´óÓÚÒ»¸ö¿éÊ±£¬ÇÒºÍ¿é´óÐ¡²»¶ÔÆëÊ±£¬ÕâÀïÓÃÃÜÎÄÅ²ÓÃµÄ·½Ê½£¬²»ÐèÒªÐÞ¸ÄÎÄ¼þ´óÐ¡
-                */
+                 * å½“éœ€è¦è¯»çš„æ•°æ®å¤§äºŽä¸€ä¸ªå—æ—¶ï¼Œä¸”å’Œå—å¤§å°ä¸å¯¹é½æ—¶ï¼Œè¿™é‡Œç”¨å¯†æ–‡æŒªç”¨çš„æ–¹å¼ï¼Œä¸éœ€è¦ä¿®æ”¹æ–‡ä»¶å¤§å°
+                 */
 
-                Status = PocAesECBDecrypt_CiphertextStealing(NewBuffer, LengthReturned, OrigBuffer);
+                Status = PocAesECBDecrypt_CiphertextStealing((PCHAR)NewBuffer, LengthReturned, (PCHAR)OrigBuffer);
 
                 if (STATUS_SUCCESS != Status)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt_CiphertextStealing2 failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
-
             }
             else
             {
                 /*
-                * µ±ÐèÒª¶ÁµÄÊý¾Ý±¾Éí¾ÍºÍ¿é´óÐ¡¶ÔÆëÊ±£¬Ö±½Ó½âÃÜ
-                */
-
-                Status = PocAesECBDecrypt(NewBuffer, LengthReturned, OrigBuffer, &LengthReturned);
+                 * å½“éœ€è¦è¯»çš„æ•°æ®æœ¬èº«å°±å’Œå—å¤§å°å¯¹é½æ—¶ï¼Œç›´æŽ¥è§£å¯†
+                 */
+                Status = PocAesECBDecrypt((PCHAR)NewBuffer, LengthReturned, (PCHAR)OrigBuffer, &LengthReturned);
 
                 if (STATUS_SUCCESS != Status)
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->PocAesECBDecrypt failed.\n"));
                     Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
                     Data->IoStatus.Information = 0;
-                    Status = FLT_POSTOP_FINISHED_PROCESSING;
-                    goto EXIT;
+                    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                    __leave;
                 }
+            }
+        }
+        __finally
+        {
 
+            if (NULL != StreamContext)
+            {
+                if (NULL != StreamContext->FileName)
+                {
+                    // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = %ws\n", StreamContext->FileName));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, FileName address is %p\n", __FUNCTION__, StreamContext->FileName));
+                    // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%p\n", StreamContext->FileName));
+                }
+                else
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s,FileName = NULL\n", __FUNCTION__));
+                }
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, StreamContext = NULL\n", __FUNCTION__));
             }
 
+            if (NULL != NewBuffer)
+            {
+                FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, READ_BUFFER_TAG);
+                NewBuffer = NULL;
+                SwapBufferContext->NewBuffer = NULL;
+            }
 
+            if (NULL != outReadBuffer)
+            {
+                FltFreePoolAlignedWithTag(FltObjects->Instance, outReadBuffer, READ_BUFFER_TAG);
+                outReadBuffer = NULL;
+            }
+
+            if (NULL != TempNewBuffer)
+            {
+                ExFreePoolWithTag(TempNewBuffer, READ_BUFFER_TAG);
+                TempNewBuffer = NULL;
+            }
+
+            if (NULL != TempOrigBuffer)
+            {
+                ExFreePoolWithTag(TempOrigBuffer, READ_BUFFER_TAG);
+                TempOrigBuffer = NULL;
+            }
+
+            if (NULL != StreamContext)
+            {
+                FltReleaseContext(StreamContext); // PreReadå‡½æ•°ä¸­ PocFindOrCreateStreamContext ä¼šGetä¸€æ¬¡ï¼Œå› æ­¤è¿™é‡Œéœ€è¦Releaseä¸€æ¬¡
+                StreamContext = NULL;
+                SwapBufferContext->StreamContext = NULL;
+            }
+
+            if (NULL != SwapBufferContext)
+            {
+                ExFreePoolWithTag(SwapBufferContext, READ_BUFFER_TAG);
+                SwapBufferContext = NULL;
+                *Context = NULL;
+            }
         }
-        except(EXCEPTION_EXECUTE_HANDLER)
-        {
-            Data->IoStatus.Status = GetExceptionCode();
-            Data->IoStatus.Information = 0;
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
-            goto EXIT;
-        }
-
-
-        Status = PocGetProcessName(Data, ProcessName);
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Decrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
-            StartingVbo,
-            LengthReturned,
-            ProcessName, 
-            StreamContext->FileName));
-
-       
     }
-
-    Status = FLT_POSTOP_FINISHED_PROCESSING;
-
-EXIT:
-
-    if (NULL != NewBuffer)
+    __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        FltFreePoolAlignedWithTag(FltObjects->Instance, NewBuffer, READ_BUFFER_TAG);
-        NewBuffer = NULL;
+        Data->IoStatus.Status = GetExceptionCode();
+        Data->IoStatus.Information = 0;
+        ret_status = FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    if (NULL != outReadBuffer)
-    {
-        FltFreePoolAlignedWithTag(FltObjects->Instance, outReadBuffer, READ_BUFFER_TAG);
-        outReadBuffer = NULL;
-    }
-
-    if (NULL != TempNewBuffer)
-    {
-        ExFreePoolWithTag(TempNewBuffer, READ_BUFFER_TAG);
-        TempNewBuffer = NULL;
-    }
-
-    if (NULL != TempOrigBuffer)
-    {
-        ExFreePoolWithTag(TempOrigBuffer, READ_BUFFER_TAG);
-        TempOrigBuffer = NULL;
-    }
-
-    if (NULL != SwapBufferContext)
-    {
-        ExFreePoolWithTag(SwapBufferContext, READ_BUFFER_TAG);
-        SwapBufferContext = NULL;
-    }
-
-    if (NULL != StreamContext)
-    {
-        FltReleaseContext(StreamContext);
-        StreamContext = NULL;
-    }
-
-    return Status;
+    return STATUS_SUCCESS;
 }
