@@ -217,7 +217,6 @@ PocPreSetInformationOperation(
                 __FUNCTION__,
                 Status));
         }
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto EXIT;
     }
 
