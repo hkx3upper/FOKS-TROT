@@ -33,7 +33,7 @@ https://www.microsoft.com/en-us/download/details.aspx?id=30688
 项目->属性的VC++目录的包含目录，库目录设置相应的位置  
 链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
 输入->附加依赖项一定要设置为ksecdd.lib  
-2.在`allowed_extensions.h`中设置要过滤的文件扩展名，  
+2.在`allowed_extensions.h`中设置机密文件扩展名，在`allowed_extensions.h`设置机密文件夹。
 Process.c->PocIsUnauthorizedProcess设置授权进程  
 3.使用Visual Studio 2019编译Debug x64驱动，编译User、UserDll和UserPanel  
 4.建议在Windows 10 x64，NTFS环境运行(这里主要是FltFlushBuffers2的IRP_MN_FLUSH_AND_PURGE只支持NTFS)，

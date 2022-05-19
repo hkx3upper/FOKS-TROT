@@ -23,7 +23,7 @@ NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data);
 
 NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName);
 
-NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension);
+NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data);
 
 NTSTATUS PocIsUnauthorizedProcess(IN PWCHAR ProcessName);
 

@@ -411,7 +411,7 @@ PocPostSetInformationOperation(
             * 不一致则会交给PostClose修改Tailer
             */
 
-            Status = PocBypassIrrelevantFileExtension(NewFileExtension);
+            Status = PocBypassIrrelevantBy_PathAndExtension(Data);
 
             if (POC_IRRELEVENT_FILE_EXTENSION == Status || NULL != TargetFileObject)
             {
@@ -451,7 +451,7 @@ PocPostSetInformationOperation(
             * 到这里，说明原来的扩展名不是目标扩展名，所以没有进入PostCreate为其创建StreamContext
             */
 
-            Status = PocBypassIrrelevantFileExtension(NewFileExtension);
+            Status = PocBypassIrrelevantBy_PathAndExtension(Data);
 
             if (POC_IS_TARGET_FILE_EXTENSION == Status)
             {

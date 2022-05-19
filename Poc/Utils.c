@@ -225,6 +225,80 @@ NTSTATUS PocParseFileNameExtension(
 	return STATUS_UNSUCCESSFUL;
 }
 
+/**
+ * @brief 如果时机密路径则返回值未 STATUS_SUCCESS 。否则返回值为 POC_IS_IRRELEVENT_PATH
+ */
+NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
+{
+	static WCHAR RelevantPath[256][1024];
+	static BOOLEAN first_called = TRUE;
+	if (first_called)
+	{
+		first_called = FALSE;
+		RtlZeroMemory(RelevantPath, sizeof(RelevantPath));
+
+		for (const PWCHAR *p = allowed_path; *p; p++)
+		{
+			PocSymbolLinkPathToDosPath(*p, RelevantPath[p - allowed_path]);
+
+			//如果*p的最后一个字符不是'\\'或者'/'则需要加上'\\'，因为是文件夹路径，防止后续匹配出现问题
+			size_t len = wcslen(RelevantPath[p - allowed_path]);
+			if (RelevantPath[p - allowed_path][len - 1] != L'\\' && RelevantPath[p - allowed_path][len - 1] != L'/')
+			{
+				wcscat(RelevantPath[p - allowed_path], L"\\");
+			}
+
+			// 把所有的 '/' 转为 '\\'
+			for(int i = 0; i < len; i++)
+			{
+				if(RelevantPath[p - allowed_path][i] == L'/')
+				{
+					RelevantPath[p - allowed_path][i] = L'\\';
+				}
+			}
+		}
+	}
+	if (NULL == FileName)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocBypassWordBackupFile->FileName is NULL.\n"));
+		return STATUS_INVALID_PARAMETER;
+	}
+
+	NTSTATUS Status = POC_IS_IRRELEVENT_PATH;
+
+	PWCHAR lpFileName = NULL;
+
+	lpFileName = FileName;
+
+	for (int i = 0; i < 256; i++)
+	{
+		// 匹配的过程中可以认为 '\\' == '/' 
+		if(wcslen(RelevantPath[i]) > wcslen(lpFileName))
+		{
+			continue;
+		}
+		int j = 0;
+		for(; j < wcslen(RelevantPath[i]); ++j)
+		{
+			if(RelevantPath[i][j] != lpFileName[j])
+			{
+				if(RelevantPath[i][j] == L'\\' && lpFileName[j] == L'/')
+				{
+					continue;
+				}
+			}
+		}
+		if (j == wcslen(RelevantPath[i]))
+		{
+			Status = STATUS_SUCCESS;
+			break;
+		}
+	}
+
+
+	return Status;
+}
+
 NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 /*
  * 过滤掉非目标扩展名文件
@@ -272,6 +346,27 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 	// {
 	// 	return POC_IS_TARGET_FILE_EXTENSION;
 	// }
+}
+
+NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
+{
+	// TODO 改进返回值的表示方法
+	WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
+	WCHAR FileExtension[POC_MAX_NAME_LENGTH] = {0};
+	if (STATUS_SUCCESS == PocGetFileNameOrExtension(Data, FileExtension, FileName))
+	{
+		if (PocBypassRelevantPath(FileName) == STATUS_SUCCESS)
+		{
+			if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION)
+			{
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
+
+				return POC_IS_TARGET_FILE_EXTENSION;
+			}
+		}
+	}
+	// return POC_IS_IRRELEVANT_PATH_AND_EXTENSION;
+	return POC_IRRELEVENT_FILE_EXTENSION;
 }
 
 NTSTATUS PocQuerySymbolicLink(

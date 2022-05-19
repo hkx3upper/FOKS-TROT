@@ -892,7 +892,7 @@ PocPreCreateOperation (
     /*
     * 过滤掉非目标扩展名文件的Create
     */
-    Status = PocBypassIrrelevantFileExtension(FileExtension);
+    Status = PocBypassIrrelevantBy_PathAndExtension(Data);
 
     if (POC_IRRELEVENT_FILE_EXTENSION == Status)
     {
