@@ -215,6 +215,7 @@
     <ClInclude Include="processecure.h" />
     <ClInclude Include="process.h" />
     <ClInclude Include="read.h" />
+    <ClInclude Include="secure_process.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="write.h" />
   </ItemGroup>

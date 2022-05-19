@@ -2,7 +2,7 @@
 #include "process.h"
 #include "utils.h"
 #include "processecure.h"
-
+#include "secure_process.h"
 
 LIST_ENTRY PocProcessRulesListHead = { 0 };
 PKSPIN_LOCK PocProcessRulesListSpinLock = { 0 };
@@ -116,11 +116,36 @@ EXIT:
 }
 
 
+NTSTATUS PocAddProcessRuleNode(const PWCHAR process, int access_mode)
+{
+	PPOC_PROCESS_RULES ProcessRules = NULL;
+
+	NTSTATUS Status = PocCreateProcessRulesNode(&ProcessRules);
+
+	if (STATUS_SUCCESS != Status)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto EXIT;
+	}
+
+	ProcessRules->Access = access_mode;
+
+	Status = PocSymbolLinkPathToDosPath(process, ProcessRules->ProcessName);
+
+	if (STATUS_SUCCESS != Status)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
+		goto EXIT;
+	}
+EXIT:
+	return Status;
+}
+
 NTSTATUS PocProcessRulesListInit()
 {
-	NTSTATUS Status = 0;
+	NTSTATUS Status = STATUS_SUCCESS;
 
-	PPOC_PROCESS_RULES ProcessRules = NULL;
+	// PPOC_PROCESS_RULES ProcessRules = NULL;
 
 	PocProcessRulesListSpinLock = ExAllocatePoolWithTag(
 		NonPagedPool,
@@ -140,169 +165,31 @@ NTSTATUS PocProcessRulesListInit()
 	KeInitializeSpinLock(PocProcessRulesListSpinLock);
 
 
-	/*
-	* PocUser.exe必须是授权进程，explorer.exe对于.doc文件是必须的
-	*/
+	// /*
+	// * PocUser.exe必须是授权进程，explorer.exe对于.doc文件是必须的
+	// */
+	// PocAddProcessRuleNode(POC_POCUSER_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_EXPLORER_PATH, POC_PR_ACCESS_READWRITE);
 
 
-	Status = PocCreateProcessRulesNode(&ProcessRules);
+	// /*
+	// * 下面的进程按需添加，注意，需要添加完整路径
+	// */
+	// PocAddProcessRuleNode(POC_NOTEPAD_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_VSCODE_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_NOTEPADPLUS_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_WPS_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_WPP_PATH, POC_PR_ACCESS_READWRITE);
+	// PocAddProcessRuleNode(POC_ET_PATH, POC_PR_ACCESS_READWRITE);
 
-	if (STATUS_SUCCESS != Status)
+	for(const PWCHAR *p = secure_process; *p; p++)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
+		Status = PocAddProcessRuleNode(*p, POC_PR_ACCESS_READWRITE);
+		if (Status != STATUS_SUCCESS)
+		{
+			goto EXIT;
+		}
 	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_POCUSER_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_EXPLORER_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-
-	/*
-	* 下面的进程按需添加，注意，需要添加完整路径
-	*/
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_NOTEPAD_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_VSCODE_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_NOTEPADPLUS_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_WPS_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_WPP_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-
-	Status = PocCreateProcessRulesNode(&ProcessRules);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocCreateProcessRulesNode failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
-	ProcessRules->Access = POC_PR_ACCESS_READWRITE;
-
-	Status = PocSymbolLinkPathToDosPath(POC_ET_PATH, ProcessRules->ProcessName);
-
-	if (STATUS_SUCCESS != Status)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
-		goto EXIT;
-	}
-
 
 
 	return Status;
