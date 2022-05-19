@@ -266,36 +266,36 @@ NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
 
 	NTSTATUS Status = POC_IS_IRRELEVENT_PATH;
 
-	PWCHAR lpFileName = NULL;
+	PWCHAR lpFileName = FileName;
 
-	lpFileName = FileName;
-
-	for (int i = 0; i < 256; i++)
+	for (int i = 0; i < 256 && wcslen(RelevantPath[i]) > 0; i++)
 	{
-		// 匹配的过程中可以认为 '\\' == '/' 
 		if(wcslen(RelevantPath[i]) > wcslen(lpFileName))
 		{
 			continue;
 		}
 		int j = 0;
-		for(; j < wcslen(RelevantPath[i]); ++j)
+		const size_t len = wcslen(RelevantPath[i]);
+		for(; j < len; ++j)
 		{
 			if(RelevantPath[i][j] != lpFileName[j])
 			{
-				if(RelevantPath[i][j] == L'\\' && lpFileName[j] == L'/')
+				if(RelevantPath[i][j] == L'\\' && lpFileName[j] == L'/')// 匹配的过程中可以认为 '\\' == '/' 
 				{
 					continue;
 				}
+				else
+				{
+					break;
+				}
 			}
 		}
-		if (j == wcslen(RelevantPath[i]))
+		if (len == j)
 		{
 			Status = STATUS_SUCCESS;
 			break;
 		}
 	}
-
-
 	return Status;
 }
 
