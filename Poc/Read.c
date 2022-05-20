@@ -15,10 +15,13 @@ PocPostReadOperationWhenSafe(
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags);
 
-NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
-                            _In_ PCFLT_RELATED_OBJECTS FltObjects,
-                            PVOID OrigBuffer,
-                            PPOC_SWAP_BUFFER_CONTEXT *Context);
+
+NTSTATUS PocPostReadDecrypt(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    PVOID OrigBuffer,
+    PPOC_SWAP_BUFFER_CONTEXT *Context);
+
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreReadOperation(
@@ -39,14 +42,14 @@ PocPreReadOperation(
     BOOLEAN NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
 
     ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
-    ULONG len_read = Data->Iopb->Parameters.Read.Length; //以字节为单位
+    ULONG ByteCount = Data->Iopb->Parameters.Read.Length; //以字节为单位
 
     PCHAR NewBuffer = NULL;
     PMDL NewMdl = NULL;
 
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
 
-    if (0 == len_read)
+    if (0 == ByteCount)
     {
         ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
@@ -122,7 +125,14 @@ PocPreReadOperation(
             Data->IoStatus.Status = STATUS_END_OF_FILE;
             Data->IoStatus.Information = 0;
 
-            ret_status = FLT_PREOP_COMPLETE; //	The minifilter driver is completing the I/O operation. The filter manager does not send the I/O operation to any minifilter drivers below the caller in the driver stack or to the file system
+            ret_status = FLT_PREOP_COMPLETE; 
+
+            /*
+            * The minifilter driver is completing the I/O operation. 
+            * The filter manager does not send the I/O operation to any minifilter drivers 
+            * below the caller in the driver stack or to the file system
+            */
+            
             goto ERROR;
         }
     }
@@ -130,14 +140,14 @@ PocPreReadOperation(
     {
         if (!NonCachedIo)
         {
-            if (StartingVbo + len_read > StreamContext->FileSize)
+            if (StartingVbo + ByteCount > StreamContext->FileSize)
             {
                 PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n",
                                                     ProcessName,
                                                     Data->Iopb->Parameters.Read.Length,
                                                     StreamContext->FileSize - StartingVbo));
                 Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
-                len_read = Data->Iopb->Parameters.Read.Length;
+                ByteCount = Data->Iopb->Parameters.Read.Length;
                 FltSetCallbackDataDirty(Data);
             }
 
@@ -181,7 +191,7 @@ PocPreReadOperation(
         {
             NewBuffer = (PCHAR)FltAllocatePoolAlignedWithTag(FltObjects->Instance,
                                                              NonPagedPool,
-                                                             len_read,
+                                                             ByteCount,
                                                              READ_BUFFER_TAG);
 
             if (NULL == NewBuffer)
@@ -193,12 +203,12 @@ PocPreReadOperation(
                 goto ERROR;
             }
 
-            RtlZeroMemory(NewBuffer, len_read);
+            RtlZeroMemory(NewBuffer, ByteCount);
 
             if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
             {
 
-                NewMdl = IoAllocateMdl(NewBuffer, len_read, FALSE, FALSE, NULL);
+                NewMdl = IoAllocateMdl(NewBuffer, ByteCount, FALSE, FALSE, NULL);
 
                 if (NewMdl == NULL)
                 {
@@ -257,13 +267,22 @@ EXIT:
     return ret_status;
 }
 
-// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nc-fltkernel-pflt_post_operation_callback
+
 FLT_POSTOP_CALLBACK_STATUS
 PocPostReadOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags)
+/*---------------------------------------------------------
+函数名称: PocPostReadOperation
+函数描述: Post Read的处理，主要包括数据的解密以及文件标识尾的隐藏
+作者:     hkx3upper
+更新维护: wangzhankun
+---------------------------------------------------------*/
+/*
+* https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nc-fltkernel-pflt_post_operation_callback
+*/
 {
     UNREFERENCED_PARAMETER(Flags);
 
@@ -273,7 +292,7 @@ PocPostReadOperation(
     PVOID OrigBuffer = NULL;
     BOOLEAN clean_here = TRUE;
 
-    FLT_POSTOP_CALLBACK_STATUS ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+    FLT_POSTOP_CALLBACK_STATUS Status = FLT_POSTOP_FINISHED_PROCESSING;
 
     {
         PPOC_STREAM_CONTEXT StreamContext = ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext;
@@ -289,7 +308,7 @@ PocPostReadOperation(
             }
             else if (!NT_SUCCESS(Data->IoStatus.Status) || (Data->IoStatus.Information == 0))
             {
-                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
         }
@@ -298,7 +317,7 @@ PocPostReadOperation(
             if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
             {
                 PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
-                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
         }
@@ -315,8 +334,11 @@ PocPostReadOperation(
 
             FLT_ASSERT(((PMDL)Data->Iopb->Parameters.Read.MdlAddress)->Next == NULL);
 
-            // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmgetsystemaddressformdlsafe
-            // This routine maps the physical pages that are described by the specified MDL into system address space, if they are not already mapped to system address space.
+            /*
+            * https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmgetsystemaddressformdlsafe
+            * This routine maps the physical pages that are described by the specified MDL into system address space, 
+            * if they are not already mapped to system address space.
+            */
             OrigBuffer = MmGetSystemAddressForMdlSafe(Data->Iopb->Parameters.Read.MdlAddress,
                                                       NormalPagePriority | MdlMappingNoExecute);
 
@@ -328,7 +350,7 @@ PocPostReadOperation(
 
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
-                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
         }
@@ -344,7 +366,7 @@ PocPostReadOperation(
                                                   CompletionContext,
                                                   Flags,
                                                   PocPostReadOperationWhenSafe,
-                                                  &ret_status))
+                                                  &Status))
             {
                 clean_here = FALSE;
             }
@@ -352,7 +374,7 @@ PocPostReadOperation(
             {
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
-                ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+                Status = FLT_POSTOP_FINISHED_PROCESSING;
             }
 
             goto EXIT;
@@ -363,7 +385,7 @@ PocPostReadOperation(
             CompletionContext = tmp;
         }
     }
-    ret_status = FLT_POSTOP_FINISHED_PROCESSING;
+    Status = FLT_POSTOP_FINISHED_PROCESSING;
 
 EXIT:
 
@@ -383,8 +405,9 @@ EXIT:
         CompletionContext = NULL;
     }
 
-    return ret_status;
+    return Status;
 }
+
 
 FLT_POSTOP_CALLBACK_STATUS
 PocPostReadOperationWhenSafe(
@@ -392,6 +415,13 @@ PocPostReadOperationWhenSafe(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags)
+/*---------------------------------------------------------
+函数名称: PocPostReadOperationWhenSafe
+函数描述: 如下
+作者:     wangzhankun
+更新维护: 
+---------------------------------------------------------*/
+
 /*++
 
 Routine Description:
@@ -472,6 +502,7 @@ Return Value:
     return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
+
 NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                             _In_ PCFLT_RELATED_OBJECTS FltObjects,
                             PVOID OrigBuffer,
@@ -488,7 +519,13 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
         ASSERT(StreamContext);
 
         ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
-        ULONG LengthReturned = (ULONG)Data->IoStatus.Information; // This is set to a request-dependent value. For example, on successful completion of a transfer request, this is set to the number of bytes transferred. If a transfer request is completed with another STATUS_XXX, this member is set to zero.
+
+        /*
+        * This is set to a request-dependent value. For example, on successful completion of a transfer request, 
+        * this is set to the number of bytes transferred. 
+        * If a transfer request is completed with another STATUS_XXX, this member is set to zero.
+        */
+        ULONG LengthReturned = (ULONG)Data->IoStatus.Information;
         ULONG FileSize = StreamContext->FileSize;
 
         LARGE_INTEGER byteOffset = {0};
