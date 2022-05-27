@@ -3,9 +3,9 @@
 ## 基于Minifilter框架的双缓冲透明加解密驱动  
 
 ## 引言：  
-本项目是个实验性项目，且作者对于文件系统等的理解难免会存在偏差，因此可能会产生误导，望读者辩证的学习，并且请读者遵循相关的开源协议。  
+本项目是个实验性项目，且作者对于文件系统等的理解难免会存在偏差，因此可能会产生误导，望读者辩证的学习，并且请读者遵循相关的开源协议（not necessary）。  
 因为之前写过一个minifilter的透明加密解密驱动，但当时水平确实有限，有很多的问题，没有找到原因，只是进行了规避，导致在错误的基础上又产生了错误，所以在之前项目开发经验的基础上，写了这个项目。  
-这个项目也打算作为毕设，如有雷同，纯属雷同s(-__-)b  
+这个项目已作为毕设，如有雷同，纯属雷同s(-__-)b  
 
 ## 简介：  
 本项目是一个使用minifilter框架的透明加密解密过滤驱动，当进程有写入特定的文件扩展名（比如txt，docx）文件的倾向时自动加密。授权进程想要读取密文文件时自动解密，非授权进程不解密，显示密文，且不允许修改密文，这里的加密或解密只针对NonCachedIo。桌面端也可以发送特权加密和特权解密命令，实现单独加密或解密。  
@@ -18,13 +18,10 @@
 7.注册进程相关回调，使用链表统一管理授权与非授权进程；注册进程与线程对象回调，保护进程EPROCESS,ETHREAD对象；对授权进程的代码段进行完整性校验。  
 
 **It's a minifilter used for transparent-encrypting.**  
-1.Double cache map (ciphertext cache and plaintext cache) by using two SectionObjectPointer.  
-2.Using StreamContext and 4KB-tail to save information of encrypted file.  
-3.Using AES-128 ECB Ciphertext-stealing to avoid extending file size when PagingIo.  
-4.Read and Write using swapbuffers method in Windows-driver-samples-master.  
-5.Direct-encrypt and direct-decrypt by reentry minifilter.  
-6.Office .tmp file by FileRenameInformation and FileRenameInformationEx to encrypt.  
-7.Registering process notify and object callback to manage and protect process. Then Checking authorized process .text intergity.  
+Companies often choose to encrypt important data in order to prevent data leakage, which, however, will cause inconvenience to its applications. To this end, a double-cache transparent encryption and decryption system based on minifilter is designed in this thesis to realize the encryption and protection of files with specific file extension and facilitate data use on the premise of ensuring data security.   
+In this thesis, a minifilter driver of Windows file system is adopted to store important files in the disk after encryption and divide processes into authorized processes and unauthorized processes. To be specific, plaintext cache is used in authorized processes, while ciphertext cache is used in unauthorized processes, and those processes are unaware whether it is plaintext or ciphertext. The block cipher algorithm AES-128 ECB mode is applied to encryption and decryption, and ciphertext stealing method is adopted to fill the plain text that is not aligned with block size. In addition, files smaller than 16 bytes will be expanded to 16 bytes without ciphertext stealing encryption.  
+Office files are processed separately so as to adapt to word, ppt, excel and other files; related process notify routines are registered and the integrity of text segments of the process is verified for control and protection of the process; the privilege of encryption and decryption is added to encrypt or decrypt files individually. 
+The software is installed on all secret-involving computers with the same decryption key set and files will be automatically encrypted after going through modification operation. Files can be used normally in authorized processes and when files are transmitted in ciphertext through unauthorized processes, files can be transparently encrypted and decrypted on computers with this software installed, while computers without this software can only show the ciphertext.  
 
 ## 编译及使用方法：  
 1.安装CNG库：  
