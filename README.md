@@ -39,6 +39,9 @@ https://www.microsoft.com/en-us/download/details.aspx?id=30688
 hkx3upper: https://github.com/hkx3upper  
 wangzhankun: https://github.com/wangzhankun
 
+**开发文档有些错误，请结合wiki使用**
+[My Awesome Wiki](../../wiki)
+
 **欢迎愿意开发与测试项目的相关人员加入** 附代码规范  
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
