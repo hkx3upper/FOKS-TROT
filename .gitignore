@@ -3,3 +3,4 @@
 **/.vscode/**
 PocUserPanel/obj/*
 *.log
+PocUserPanel/bin/*
