@@ -70,3 +70,12 @@ const static ULONG gTraceFlags = 0x00000001;
 #define POC_WPS_PATH                    L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wps.exe"
 #define POC_WPP_PATH                    L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wpp.exe"
 #define POC_ET_PATH                     L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\et.exe"
+
+#define POC_IS_PARAMETER_NULL(_ptr)                                                                                                 \
+    {                                                                                                                               \
+        if (_ptr == NULL)                                                                                                           \
+        {                                                                                                                           \
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: POC_IS_PARAMETER_NULL: %s\n", __FUNCTION__, __FILE__, __LINE__, #_ptr)); \
+            return STATUS_INVALID_PARAMETER;                                                                                        \
+        }                                                                                                                           \
+    }
