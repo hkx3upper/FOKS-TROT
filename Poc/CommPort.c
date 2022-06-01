@@ -7,6 +7,7 @@
 PFLT_PORT gServerPort = NULL;
 PFLT_PORT gClientPort = NULL;
 
+
 NTSTATUS PocConnectNotifyCallback(
 	IN PFLT_PORT ClientPort,
 	IN PVOID ServerPortCookie,
@@ -29,6 +30,7 @@ NTSTATUS PocConnectNotifyCallback(
 	return STATUS_SUCCESS;
 }
 
+
 VOID PocDisconnectNotifyCallback(
 	IN PVOID ConnectionCookie)
 {
@@ -41,6 +43,7 @@ VOID PocDisconnectNotifyCallback(
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
+
 
 NTSTATUS PocMessageNotifyCallback(
 	IN PVOID PortCookie,
@@ -331,6 +334,7 @@ EXIT:
 	return Status;
 }
 
+
 NTSTATUS PocInitCommPort()
 {
 
@@ -377,6 +381,7 @@ NTSTATUS PocInitCommPort()
 
 	return STATUS_SUCCESS;
 }
+
 
 VOID PocCloseCommPort()
 {

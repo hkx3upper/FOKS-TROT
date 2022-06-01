@@ -90,10 +90,5 @@ NTSTATUS PocSymbolLinkPathToDosPath(
  */
 NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_t max_len_dest_path);
 
-NTSTATUS PocInjectApc(
-	IN PKTHREAD Thread,
-	IN KPROCESSOR_MODE ApcMode,
-	IN PKNORMAL_ROUTINE NormalRoutine,
-	IN PVOID NormalContext,
-	IN PVOID SystemArgument1,
-	IN PVOID SystemArgument2);
+NTSTATUS PocBypassIrrelevantFileExtension(
+	IN PWCHAR FileExtension);

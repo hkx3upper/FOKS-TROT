@@ -6,7 +6,15 @@
 #include "allowed_extension.h"
 #include <wdm.h>
 
+
 NTSTATUS PocAnsi2Unicode(const char *ansi, wchar_t *unicode, int unicode_size)
+/*---------------------------------------------------------
+函数名称:	PocAnsi2Unicode
+函数描述:	将ANSI字符串转为UNICODE
+作者:		wangzhankun
+时间：		2022.06.01
+更新维护: 
+---------------------------------------------------------*/
 {
 	POC_IS_PARAMETER_NULL(ansi);
 	POC_IS_PARAMETER_NULL(unicode);
@@ -23,6 +31,7 @@ NTSTATUS PocAnsi2Unicode(const char *ansi, wchar_t *unicode, int unicode_size)
 
 	return RtlAnsiStringToUnicodeString(&unicode_str, &ansi_str, FALSE); // PASSIVE_LEVEL
 }
+
 
 NTSTATUS PocGetFileNameOrExtension(
 	IN PFLT_CALLBACK_DATA Data,
@@ -84,6 +93,7 @@ EXIT:
 	return Status;
 }
 
+
 ULONG PocQueryEndOfFileInfo(
 	IN PFLT_INSTANCE Instance,
 	IN PFILE_OBJECT FileObject)
@@ -103,6 +113,7 @@ ULONG PocQueryEndOfFileInfo(
 
 	return StandardInfo.EndOfFile.LowPart;
 }
+
 
 NTSTATUS PocSetEndOfFileInfo(
 	IN PFLT_INSTANCE Instance,
@@ -124,6 +135,7 @@ NTSTATUS PocSetEndOfFileInfo(
 	return Status;
 }
 
+
 USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume)
 {
 	// Therefore, a minifilter driver commonly calls this routine from a post-mount callback function
@@ -144,6 +156,7 @@ USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume)
 
 	return max(VolProp->SectorSize, MIN_SECTOR_SIZE);
 }
+
 
 NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data)
 /*
@@ -176,6 +189,7 @@ NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data)
 	return Status;
 }
 
+
 NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName)
 /*
  * 这个函数还是必要的，因为一些关键路径比如Windows System32等路径还是不应该加密的
@@ -207,6 +221,7 @@ NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName)
 
 	return Status;
 }
+
 
 NTSTATUS PocParseFileNameExtension(
 	IN PWCHAR FileName,
@@ -243,7 +258,15 @@ NTSTATUS PocParseFileNameExtension(
 	return STATUS_UNSUCCESSFUL;
 }
 
+
 NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_t max_len_dest_path)
+/*---------------------------------------------------------
+函数名称:	PocAnyPath2DosPath
+函数描述:	将任何格式的路径转换为Dos路径
+作者:		wangzhankun
+时间：		2022.06.01
+更新维护:
+---------------------------------------------------------*/
 {
 	if (NULL == src_path)
 	{
@@ -293,7 +316,7 @@ NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_
 		if (len == 0 || len * sizeof(WCHAR) > max_len_dest_path)
 		{
 			Status = STATUS_UNSUCCESSFUL;
-			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: dos_src_path is invalid, the length is %lld\n", __FUNCTION__, __FILE__, __LINE__, len));
+			//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: dos_src_path is invalid, the length is %d.\n", __FUNCTION__, __FILE__, __LINE__, len));
 			goto EXIT;
 		}
 	}
@@ -311,7 +334,15 @@ EXIT:
 	return Status;
 }
 
+
 NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_relevant_path)
+/*---------------------------------------------------------
+函数名称:	PocAddOrFindRelevantPath
+函数描述:	机密路径的添加或查询函数
+作者:		wangzhankun
+时间：		2022.06.01
+更新维护:
+---------------------------------------------------------*/
 {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -330,7 +361,7 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 			Status = PocAnyPath2DosPath(*p, RelevantPath[current_relevant_path_inx], sizeof(RelevantPath[current_relevant_path_inx]));
 			if (Status != STATUS_SUCCESS)
 			{
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnyPath2DosPath failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+				//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnyPath2DosPath failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 				goto EXIT;
 			}
 
@@ -353,14 +384,9 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 	if (folder_name != NULL)
 	{
 		{
-			// 这里可以直接利用RelevantPath[current_relevant_path_inx]。因为如果不需要添加的话,
-			// current_relevant_path_inx保持不变即可
-			Status = PocAnyPath2DosPath(folder_name, RelevantPath[current_relevant_path_inx], sizeof(RelevantPath[current_relevant_path_inx]));
-			if (Status != STATUS_SUCCESS)
-			{
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnyPath2DosPath failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
-				goto EXIT;
-			}
+
+			
+			wcsncpy(RelevantPath[current_relevant_path_inx], folder_name, wcslen(folder_name));
 
 			//如果*p的最后一个字符不是'\\'或者'/'则需要加上'\\'，因为是文件夹路径，防止后续匹配出现问题
 			size_t len = wcslen(RelevantPath[current_relevant_path_inx]);
@@ -411,10 +437,11 @@ EXIT:
 	return Status;
 }
 
+
+NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
 /**
  * @brief 如果时机密路径则返回值未 STATUS_SUCCESS 。否则返回值为 POC_IS_IRRELEVENT_PATH
  */
-NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
 {
 
 	if (NULL == FileName)
@@ -427,6 +454,7 @@ NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
 
 	return Status;
 }
+
 
 NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 /*
@@ -462,6 +490,7 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 	return POC_IRRELEVENT_FILE_EXTENSION;
 }
 
+
 NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension)
 {
 	if (extension == NULL)
@@ -485,6 +514,7 @@ NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension)
 	return STATUS_SUCCESS;
 }
 
+
 NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 {
 	POC_IS_PARAMETER_NULL(extension);
@@ -499,6 +529,7 @@ NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 	return Status;
 }
 
+
 NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 {
 	// TODO 改进返回值的表示方法
@@ -510,7 +541,7 @@ NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 		{
 			if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION)
 			{
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
+				//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
 
 				return POC_IS_TARGET_FILE_EXTENSION;
 			}
@@ -519,6 +550,7 @@ NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 	// return POC_IS_IRRELEVANT_PATH_AND_EXTENSION;
 	return POC_IRRELEVENT_FILE_EXTENSION;
 }
+
 
 NTSTATUS PocQuerySymbolicLink(
 	IN PUNICODE_STRING SymbolicLinkName,
@@ -540,7 +572,7 @@ NTSTATUS PocQuerySymbolicLink(
 
 	if (!NT_SUCCESS(Status))
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject1 failed. Status = 0x%x.\n", Status));
+		//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject1 failed. Status = 0x%x.\n", Status));
 		goto EXIT;
 	}
 
@@ -560,7 +592,7 @@ NTSTATUS PocQuerySymbolicLink(
 
 	if (!NT_SUCCESS(Status))
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject2 failed. Status = 0x%x.\n", Status));
+		//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject2 failed. Status = 0x%x.\n", Status));
 		ExFreePoolWithTag(LinkTarget->Buffer, DOS_NAME_BUFFER_TAG);
 	}
 
@@ -585,6 +617,7 @@ EXIT:
 
 	return Status;
 }
+
 
 NTSTATUS PocGetVolumeInstance(
 	IN PFLT_FILTER pFilter,
@@ -671,6 +704,7 @@ NTSTATUS PocGetVolumeInstance(
 	return Status;
 }
 
+
 NTSTATUS PocSymbolLinkPathToDosPath(
 	IN PWCHAR Path,
 	IN OUT PWCHAR DosPath)
@@ -715,7 +749,7 @@ NTSTATUS PocSymbolLinkPathToDosPath(
 
 	if (STATUS_SUCCESS != Status || NULL == uDosName.Buffer)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocQuerySymbolicLink failed ststus = 0x%x.\n", __FUNCTION__, Status));
+		//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocQuerySymbolicLink failed ststus = 0x%x.\n", __FUNCTION__, Status));
 		goto EXIT;
 	}
 

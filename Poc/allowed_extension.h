@@ -6,10 +6,10 @@
 WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][32];
 size_t secure_extension_count = 0;
 
-//在比较时，采用的时大小写无关的比较方式
+// 在比较时，采用的是大小写无关的比较方式
 // 这里添加你需要进行透明加密的文件的拓展名
 PWCHAR allowed_extension[MAX_SECURE_EXTENSION_COUNT] = {
-	//    L"docx",
+	    L"docx",
 	//    L"doc",
 	//    L"xlsx",
 	//    L"xls",
@@ -25,4 +25,5 @@ PWCHAR allowed_extension[MAX_SECURE_EXTENSION_COUNT] = {
 // 当且仅当文件位于以下文件夹下时才会进行透明加密
 const PWCHAR allowed_path[] = {
 	L"C:\\Users\\wangzhankun\\Desktop\\testdata",
+	L"C:\\Desktop",
 	NULL};

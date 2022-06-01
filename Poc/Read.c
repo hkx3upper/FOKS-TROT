@@ -59,123 +59,131 @@ PocPreReadOperation(
         // TODO round_to_size
     }
 
-    {
-        Status = PocGetProcessName(Data, ProcessName);
-        if (STATUS_SUCCESS != Status)
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocGetProcessName failed\n", __FUNCTION__, __FILE__, __LINE__));
-            goto ERROR;
-        }
-        WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
-        Status = PocGetFileNameOrExtension(Data, NULL, FileName);
+    
+    Status = PocGetProcessName(Data, ProcessName);
 
-        if (wcsstr(ProcessName, L"Video.UI.exe") != NULL && wcsstr(FileName, L"mp4") != NULL)
-        {
-            int a = 0;
-            a = 1;
+
+    /*
+    * 在这里调用FltGetFileNameInformation会出问题的
+    * 请去msdn查阅文档
+    */
+    //WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
+
+    //Status = PocGetFileNameOrExtension(Data, NULL, FileName);
+
+    //if (STATUS_SUCCESS != Status)
+    //{
+    //    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocGetFileNameOrExtension failed. Status = %d.\n", __FUNCTION__, Status));
+    //    goto ERROR;
+    //}
+
+    //if (wcsstr(ProcessName, L"Video.UI.exe") != NULL && wcsstr(FileName, L"mp4") != NULL)
+    //{
+    //    int a = 0;
+    //    a = 1;
+    //}
+    
+
+    // Find StreamContext
+    Status = PocFindOrCreateStreamContext(
+        Data->Iopb->TargetInstance,
+        Data->Iopb->TargetFileObject,
+        FALSE,
+        &StreamContext,
+        &ContextCreated);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        if (STATUS_NOT_FOUND != Status && !FsRtlIsPagingFile(Data->Iopb->TargetFileObject))
+        /*
+        * 说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
+        * 或者是一个Paging file，这里会返回0xc00000bb，
+        * 原因是Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS被清掉了
+        *
+        //
+        //  To make FAT match the present functionality of NTFS, disable
+        //  stream contexts on paging files
+        //
+
+        if (IsPagingFile) {
+            SetFlag( Fcb->Header.Flags2, FSRTL_FLAG2_IS_PAGING_FILE );
+            ClearFlag( Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS );
         }
+        */
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
+                                                __FUNCTION__,
+                                                Status));
+        }
+
+        ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto ERROR;
     }
 
-    { // Find StreamContext
-        Status = PocFindOrCreateStreamContext(
-            Data->Iopb->TargetInstance,
-            Data->Iopb->TargetFileObject,
-            FALSE,
-            &StreamContext,
-            &ContextCreated);
+    if (!StreamContext->IsCipherText) //不是密文文件
+    {
+        // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->leave. File is plaintext.\n"));
+        ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto ERROR;
+    }
 
-        if (STATUS_SUCCESS != Status)
-        {
-            if (STATUS_NOT_FOUND != Status && !FsRtlIsPagingFile(Data->Iopb->TargetFileObject))
-            /*
-            * 说明不是目标扩展文件，在Create中没有创建StreamContext，不认为是个错误
-            * 或者是一个Paging file，这里会返回0xc00000bb，
-            * 原因是Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS被清掉了
-            *
-            //
-            //  To make FAT match the present functionality of NTFS, disable
-            //  stream contexts on paging files
-            //
+    if (StartingVbo >= StreamContext->FileSize) //文件大小小于读取的起始位置
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws read end of file.\n", ProcessName));
+        Data->IoStatus.Status = STATUS_END_OF_FILE;
+        Data->IoStatus.Information = 0;
 
-            if (IsPagingFile) {
-                SetFlag( Fcb->Header.Flags2, FSRTL_FLAG2_IS_PAGING_FILE );
-                ClearFlag( Fcb->Header.Flags2, FSRTL_FLAG2_SUPPORTS_FILTER_CONTEXTS );
-            }
-            */
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
-                                                    __FUNCTION__,
-                                                    Status));
-            }
+        ret_status = FLT_PREOP_COMPLETE; 
 
-            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-            goto ERROR;
-        }
-
-        if (!StreamContext->IsCipherText) //不是密文文件
-        {
-            // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->leave. File is plaintext.\n"));
-            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-            goto ERROR;
-        }
-
-        if (StartingVbo >= StreamContext->FileSize) //文件大小小于读取的起始位置
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws read end of file.\n", ProcessName));
-            Data->IoStatus.Status = STATUS_END_OF_FILE;
-            Data->IoStatus.Information = 0;
-
-            ret_status = FLT_PREOP_COMPLETE; 
-
-            /*
-            * The minifilter driver is completing the I/O operation. 
-            * The filter manager does not send the I/O operation to any minifilter drivers 
-            * below the caller in the driver stack or to the file system
-            */
+        /*
+        * The minifilter driver is completing the I/O operation. 
+        * The filter manager does not send the I/O operation to any minifilter drivers 
+        * below the caller in the driver stack or to the file system
+        */
             
-            goto ERROR;
-        }
+        goto ERROR;
     }
+    
 
+    
+    if (!NonCachedIo)
     {
-        if (!NonCachedIo)
+        if (StartingVbo + ByteCount > StreamContext->FileSize)
         {
-            if (StartingVbo + ByteCount > StreamContext->FileSize)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n",
-                                                    ProcessName,
-                                                    Data->Iopb->Parameters.Read.Length,
-                                                    StreamContext->FileSize - StartingVbo));
-                Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
-                ByteCount = Data->Iopb->Parameters.Read.Length;
-                FltSetCallbackDataDirty(Data);
-            }
-
-            // CachedIo 不需要执行PostRead, 也不需要创建swappedbuffer
-            ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-            goto ERROR;
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n",
+                                                ProcessName,
+                                                Data->Iopb->Parameters.Read.Length,
+                                                StreamContext->FileSize - StartingVbo));
+            Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
+            ByteCount = Data->Iopb->Parameters.Read.Length;
+            FltSetCallbackDataDirty(Data);
         }
+
+        // CachedIo 不需要执行PostRead, 也不需要创建swappedbuffer
+        ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto ERROR;
     }
+    
 
-    { //创建交换缓冲区
-        SwapBufferContext = (PPOC_SWAP_BUFFER_CONTEXT)ExAllocatePoolWithTag(NonPagedPool,
-                                                                            sizeof(POC_SWAP_BUFFER_CONTEXT),
-                                                                            READ_BUFFER_TAG);
+    //创建交换缓冲区
+    SwapBufferContext = (PPOC_SWAP_BUFFER_CONTEXT)ExAllocatePoolWithTag(NonPagedPool,
+                                                                        sizeof(POC_SWAP_BUFFER_CONTEXT),
+                                                                        READ_BUFFER_TAG);
 
-        if (NULL == SwapBufferContext)
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
-            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-            Data->IoStatus.Information = 0;
-            ret_status = FLT_PREOP_COMPLETE;
-            goto ERROR;
-        }
-        RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
-
-        SwapBufferContext->StreamContext = StreamContext;
-        *CompletionContext = SwapBufferContext;
-        ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    if (NULL == SwapBufferContext)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->ExAllocatePoolWithTag SwapBufferContext failed.\n"));
+        Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        Data->IoStatus.Information = 0;
+        ret_status = FLT_PREOP_COMPLETE;
+        goto ERROR;
     }
+    RtlZeroMemory(SwapBufferContext, sizeof(POC_SWAP_BUFFER_CONTEXT));
+
+    SwapBufferContext->StreamContext = StreamContext;
+    *CompletionContext = SwapBufferContext;
+    ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+    
 
     // 参考PostCreateOperation中的做法，这里说明是非机密进程
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
@@ -186,54 +194,56 @@ PocPreReadOperation(
 
     // 下面的过程都是 FltObjects->FileObject->SectionObjectPointer != StreamContext->ShadowSectionObjectPointers
     // 也即是在机密进程中
-    { // NonCachedIo
-        if (NonCachedIo && StreamContext->IsCipherText)
-        {
-            NewBuffer = (PCHAR)FltAllocatePoolAlignedWithTag(FltObjects->Instance,
-                                                             NonPagedPool,
-                                                             ByteCount,
-                                                             READ_BUFFER_TAG);
+    // NonCachedIo
+    if (NonCachedIo && StreamContext->IsCipherText)
+    {
+        NewBuffer = (PCHAR)FltAllocatePoolAlignedWithTag(FltObjects->Instance,
+                                                            NonPagedPool,
+                                                            ByteCount,
+                                                            READ_BUFFER_TAG);
 
-            if (NULL == NewBuffer)
+        if (NULL == NewBuffer)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+            ret_status = FLT_PREOP_COMPLETE;
+            goto ERROR;
+        }
+
+        RtlZeroMemory(NewBuffer, ByteCount);
+
+        if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
+        {
+
+            NewMdl = IoAllocateMdl(NewBuffer, ByteCount, FALSE, FALSE, NULL);
+
+            if (NewMdl == NULL)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->FltAllocatePoolAlignedWithTag NewBuffer failed.\n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
                 Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
                 Data->IoStatus.Information = 0;
                 ret_status = FLT_PREOP_COMPLETE;
                 goto ERROR;
             }
 
-            RtlZeroMemory(NewBuffer, ByteCount);
-
-            if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))
-            {
-
-                NewMdl = IoAllocateMdl(NewBuffer, ByteCount, FALSE, FALSE, NULL);
-
-                if (NewMdl == NULL)
-                {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->IoAllocateMdl NewMdl failed.\n"));
-                    Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                    Data->IoStatus.Information = 0;
-                    ret_status = FLT_PREOP_COMPLETE;
-                    goto ERROR;
-                }
-
-                MmBuildMdlForNonPagedPool(NewMdl);
-            }
-
-            SwapBufferContext->NewBuffer = NewBuffer;
-            SwapBufferContext->NewMdl = NewMdl;
-
-            Data->Iopb->Parameters.Read.ReadBuffer = NewBuffer;
-            Data->Iopb->Parameters.Read.MdlAddress = NewMdl;
-            FltSetCallbackDataDirty(Data);
-
-            ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
-            goto EXIT;
+            MmBuildMdlForNonPagedPool(NewMdl);
         }
+
+        SwapBufferContext->NewBuffer = NewBuffer;
+        SwapBufferContext->NewMdl = NewMdl;
+
+        Data->Iopb->Parameters.Read.ReadBuffer = NewBuffer;
+        Data->Iopb->Parameters.Read.MdlAddress = NewMdl;
+        FltSetCallbackDataDirty(Data);
+
+        ret_status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
+        goto EXIT;
     }
+   
+
 ERROR:
+
     if (ret_status != FLT_PREOP_SUCCESS_WITH_CALLBACK)
     {
         if (NULL != StreamContext)
@@ -262,6 +272,7 @@ ERROR:
 
         *CompletionContext = NULL;
     }
+
 EXIT:
 
     return ret_status;
@@ -385,6 +396,7 @@ PocPostReadOperation(
             CompletionContext = tmp;
         }
     }
+
     Status = FLT_POSTOP_FINISHED_PROCESSING;
 
 EXIT:
