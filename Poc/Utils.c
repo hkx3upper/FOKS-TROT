@@ -8,7 +8,7 @@
 
 NTSTATUS PocAnsi2Unicode(const char *ansi, wchar_t *unicode, int unicode_size)
 {
-    POC_IS_PARAMETER_NULL(ansi);
+	POC_IS_PARAMETER_NULL(ansi);
 	POC_IS_PARAMETER_NULL(unicode);
 
 	ANSI_STRING ansi_str;
@@ -433,6 +433,17 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
  * 过滤掉非目标扩展名文件
  */
 {
+	static BOOLEAN first_called = TRUE;
+	if (first_called)
+	{
+		first_called = FALSE;
+		RtlZeroMemory(secure_extension, sizeof(secure_extension));
+		while (allowed_extension[secure_extension_count])
+		{
+			RtlMoveMemory(secure_extension[secure_extension_count], allowed_extension[secure_extension_count], wcslen(allowed_extension[secure_extension_count]) * sizeof(WCHAR));
+			secure_extension_count++;
+		}
+	}
 
 	if (NULL == FileExtension)
 	{
@@ -440,23 +451,52 @@ NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
 		return STATUS_INVALID_PARAMETER;
 	}
 
-	const PWCHAR *p = allowed_extension;
-	while (*p)
+	for (int i = 0; i < secure_extension_count; i++)
 	{
-		if (0 == _wcsicmp(FileExtension, *p))
+		if (0 == _wcsicmp(FileExtension, secure_extension[i]))
 		{
-			break;
+			return POC_IS_TARGET_FILE_EXTENSION;
 		}
-		p++;
 	}
-	if (*p)
+
+	return POC_IRRELEVENT_FILE_EXTENSION;
+}
+
+NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension)
+{
+	if (extension == NULL)
 	{
-		return POC_IS_TARGET_FILE_EXTENSION;
+		return STATUS_INVALID_PARAMETER;
 	}
-	else
+	// 不允许重复添加
+	if (PocBypassIrrelevantFileExtension(extension) == POC_IS_TARGET_FILE_EXTENSION)
 	{
-		return POC_IRRELEVENT_FILE_EXTENSION;
+		return STATUS_SUCCESS;
 	}
+
+	if (secure_extension_count >= MAX_SECURE_EXTENSION_COUNT)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAddSecureExtensionW->secure_extension_count >= MAX_SECURE_EXTENSION_COUNT.\n"));
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	RtlMoveMemory(secure_extension[secure_extension_count], extension, wcslen(extension) * sizeof(WCHAR));
+	secure_extension_count++;
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
+{
+	POC_IS_PARAMETER_NULL(extension);
+	WCHAR w_extension[32];
+	NTSTATUS Status = PocAnsi2Unicode(extension, w_extension, sizeof(w_extension));
+	if (Status != STATUS_SUCCESS)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnsi2Unicode failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		return Status;
+	}
+	Status = PocAddSecureExtensionW(w_extension);
+	return Status;
 }
 
 NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)

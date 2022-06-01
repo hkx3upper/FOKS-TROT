@@ -38,6 +38,13 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 
 NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName);
 
+/**
+ * @brief 添加一个新的需要进行透明加密的文件的拓展名
+*/
+NTSTATUS PocAddSecureExtension(IN const PCHAR extension);
+
+NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension);
+
 NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data);
 
 NTSTATUS PocIsUnauthorizedProcess(IN PWCHAR ProcessName);

@@ -2,14 +2,11 @@
 #include "global.h"
 #include "..\PocUserDll\pch.h"
 
-//#define POC_HELLO_KERNEL			1
-//#define POC_PRIVILEGE_DECRYPT		4
-//#define POC_PRIVILEGE_ENCRYPT		8
-
 //在PocUser.exe路径下执行cmd, 输入 
 // PocUser.exe 4 "C:\\Desktop\\a.txt" 解密
 // PocUser.exe 8 "C:\\Desktop\\a.txt"	加密
 // PocUser.exe 2 "C:\\Desktop\\testdata" 添加机密文件夹路径
+// PocUser.exe 3 doc 添加机密后缀名
 
 DWORD WINAPI PocGetMessageThread(_In_ LPVOID lpParameter)
 {
