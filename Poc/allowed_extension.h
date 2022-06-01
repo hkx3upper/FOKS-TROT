@@ -19,5 +19,5 @@ const PWCHAR allowed_extension[] = {
 // 当且仅当文件位于以下文件夹下时才会进行透明加密
 const PWCHAR allowed_path[] = {
 	/*L"\\Device\\HarddiskVolume3\\Users\\wangzhankun\\Desktop\\testdata",*/
-	L"C:\\Users\\wangzhankun\\Desktop\\testdata",
+	//L"C:\\Users\\wangzhankun\\Desktop\\testdata",
 	NULL};

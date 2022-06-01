@@ -7,13 +7,12 @@
 PFLT_PORT gServerPort = NULL;
 PFLT_PORT gClientPort = NULL;
 
-
 NTSTATUS PocConnectNotifyCallback(
-	IN PFLT_PORT ClientPort, 
-	IN PVOID ServerPortCookie, 
-	IN PVOID ConnectionContext, 
-	IN ULONG SizeOfContext, 
-	IN PVOID* ConnectionPortCookie)
+	IN PFLT_PORT ClientPort,
+	IN PVOID ServerPortCookie,
+	IN PVOID ConnectionContext,
+	IN ULONG SizeOfContext,
+	IN PVOID *ConnectionPortCookie)
 {
 
 	UNREFERENCED_PARAMETER(ServerPortCookie);
@@ -30,7 +29,6 @@ NTSTATUS PocConnectNotifyCallback(
 	return STATUS_SUCCESS;
 }
 
-
 VOID PocDisconnectNotifyCallback(
 	IN PVOID ConnectionCookie)
 {
@@ -43,7 +41,6 @@ VOID PocDisconnectNotifyCallback(
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
-
 
 NTSTATUS PocMessageNotifyCallback(
 	IN PVOID PortCookie,
@@ -63,10 +60,10 @@ NTSTATUS PocMessageNotifyCallback(
 	PAGED_CODE();
 
 	PCHAR Buffer = NULL;
-	POC_MESSAGE_HEADER MessageHeader = { 0 };
+	POC_MESSAGE_HEADER MessageHeader = {0};
 	NTSTATUS Status = STATUS_SUCCESS;
 
-	UNICODE_STRING uDosName = { 0 };
+	UNICODE_STRING uDosName = {0};
 
 	if (InputBuffer != NULL)
 	{
@@ -74,7 +71,7 @@ NTSTATUS PocMessageNotifyCallback(
 		try
 		{
 			Buffer = InputBuffer;
-			
+
 			RtlMoveMemory(&MessageHeader, Buffer, sizeof(POC_MESSAGE_HEADER));
 
 			switch (MessageHeader.Command)
@@ -88,22 +85,22 @@ NTSTATUS PocMessageNotifyCallback(
 			case POC_PRIVILEGE_DECRYPT:
 			{
 				/*
-				* 特权加密和特权解密，从桌面传命令进驱动
-				*/
-				CHAR TempFileName[POC_MAX_NAME_LENGTH] = { 0 };
-				WCHAR wFileName[POC_MAX_NAME_LENGTH] = { 0 };
-				ANSI_STRING Ansi = { 0 };
-				UNICODE_STRING uFileName = { 0 };
+				 * 特权加密和特权解密，从桌面传命令进驱动
+				 */
+				CHAR TempFileName[POC_MAX_NAME_LENGTH] = {0};
+				WCHAR wFileName[POC_MAX_NAME_LENGTH] = {0};
+				ANSI_STRING Ansi = {0};
+				UNICODE_STRING uFileName = {0};
 				PWCHAR lpFileName = NULL;
 
-				WCHAR wSymbolLinkName[POC_MAX_NAME_LENGTH] = { 0 };
-				UNICODE_STRING uSymbolLinkName = { 0 };
+				WCHAR wSymbolLinkName[POC_MAX_NAME_LENGTH] = {0};
+				UNICODE_STRING uSymbolLinkName = {0};
 
 				PFLT_INSTANCE Instance = NULL;
 
 				RtlMoveMemory(TempFileName, "\\??\\", strlen("\\??\\"));
 
-				if (POC_MAX_NAME_LENGTH - strlen(TempFileName) >= 
+				if (POC_MAX_NAME_LENGTH - strlen(TempFileName) >=
 					strlen(Buffer + sizeof(POC_MESSAGE_HEADER)))
 				{
 					RtlMoveMemory(
@@ -111,7 +108,7 @@ NTSTATUS PocMessageNotifyCallback(
 						Buffer + sizeof(POC_MESSAGE_HEADER),
 						strlen(Buffer + sizeof(POC_MESSAGE_HEADER)));
 				}
-				
+
 				RtlInitAnsiString(&Ansi, TempFileName);
 
 				uFileName.Buffer = wFileName;
@@ -125,26 +122,26 @@ NTSTATUS PocMessageNotifyCallback(
 				}
 
 				/*
-				* 把文件的符号链接名转换为Dos名
-				*/
+				 * 把文件的符号链接名转换为Dos名
+				 */
 
 				lpFileName = uFileName.Buffer;
 
-				while (*lpFileName != L':' && 
-					lpFileName < uFileName.Buffer + wcslen(uFileName.Buffer))
+				while (*lpFileName != L':' &&
+					   lpFileName < uFileName.Buffer + wcslen(uFileName.Buffer))
 				{
 					lpFileName++;
 				}
 
 				RtlMoveMemory(
-					wSymbolLinkName, 
-					uFileName.Buffer, 
+					wSymbolLinkName,
+					uFileName.Buffer,
 					(lpFileName - uFileName.Buffer + 1) * sizeof(WCHAR));
 
 				RtlInitUnicodeString(&uSymbolLinkName, wSymbolLinkName);
 
 				Status = PocQuerySymbolicLink(
-					&uSymbolLinkName, 
+					&uSymbolLinkName,
 					&uDosName);
 
 				if (STATUS_SUCCESS != Status)
@@ -194,19 +191,20 @@ NTSTATUS PocMessageNotifyCallback(
 			case POC_ADD_PROCESS_RULES:
 			{
 				/*
-				* 桌面添加进程规则
-				*/
+				 * 桌面添加进程规则
+				 */
 				PPOC_PROCESS_RULES ProcessRules = NULL;
 
-				ANSI_STRING aProcessName = { 0 };
-				UNICODE_STRING uProcessName = { 0 };
-				WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
-				WCHAR DosProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+				ANSI_STRING aProcessName = {0};
+				UNICODE_STRING uProcessName = {0};
+				WCHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
+				WCHAR DosProcessName[POC_MAX_NAME_LENGTH] = {0};
 
+				
 				if (NULL == ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->ProcessName)
 				{
 					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ProcessName is null.\n", __FUNCTION__));
-					Status =  STATUS_INVALID_PARAMETER;
+					Status = STATUS_INVALID_PARAMETER;
 					goto EXIT;
 				}
 
@@ -221,9 +219,9 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
-						("%s->RtlAnsiStringToUnicodeString failed. Status = 0x%x.\n", 
-							__FUNCTION__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+								 ("%s->RtlAnsiStringToUnicodeString failed. Status = 0x%x.\n",
+								  __FUNCTION__, Status));
 
 					goto EXIT;
 				}
@@ -235,7 +233,6 @@ NTSTATUS PocMessageNotifyCallback(
 					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
-
 
 				Status = PocFindProcessRulesNodeByName(
 					DosProcessName,
@@ -252,33 +249,51 @@ NTSTATUS PocMessageNotifyCallback(
 
 				ProcessRules->Access = ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Access;
 
-				wcsncpy(ProcessRules->ProcessName, 
-					DosProcessName,
-					wcslen(DosProcessName));
+				wcsncpy(ProcessRules->ProcessName,
+						DosProcessName,
+						wcslen(DosProcessName));
 
 				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add process rules success. DosProcessName = %ws Access = %d.\n", __FUNCTION__,
-					ProcessRules->ProcessName,
-					ProcessRules->Access));
+													ProcessRules->ProcessName,
+													ProcessRules->Access));
 
 				Status = STATUS_SUCCESS;
 
 				break;
 			}
+			case POC_ADD_SECURE_FODER:
+			{
+				WCHAR SecureFolder[POC_MAX_NAME_LENGTH] = {0};
+				Status = PocAnsi2Unicode(
+					((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder,
+					SecureFolder,
+					POC_MAX_NAME_LENGTH);
+				if(Status != STATUS_SUCCESS)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnsi2Unicode failed. Status = 0x%x.\n", __FUNCTION__, Status));
+					goto EXIT;
+				}
+				Status = PocAddOrFindRelevantPath(SecureFolder, FALSE);
+				if(Status != STATUS_SUCCESS)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAddOrFindRelevantPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
+					goto EXIT;
+				}
+				break;
+			}
 			default:
 			{
-
+				break;
 			}
 			}
-
 		}
 		except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			return GetExceptionCode();
 		}
-
 	}
 
-EXIT:			
+EXIT:
 	if (NULL != uDosName.Buffer)
 	{
 		ExFreePool(uDosName.Buffer);
@@ -303,10 +318,8 @@ EXIT:
 		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltSendMessage success.\n", __FUNCTION__));
 	}
 
-
 	return Status;
 }
-
 
 NTSTATUS PocInitCommPort()
 {
@@ -327,20 +340,20 @@ NTSTATUS PocInitCommPort()
 	RtlInitUnicodeString(&CommPortName, L"\\FOKS-TROT");
 
 	InitializeObjectAttributes(
-		&ObjectAttributes, 
-		&CommPortName, 
-		OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, 
-		NULL, 
+		&ObjectAttributes,
+		&CommPortName,
+		OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+		NULL,
 		SecurityDescriptor);
 
 	Status = FltCreateCommunicationPort(
-		gFilterHandle, 
-		&gServerPort, 
-		&ObjectAttributes, 
-		NULL, 
-		PocConnectNotifyCallback, 
-		PocDisconnectNotifyCallback, 
-		PocMessageNotifyCallback, 
+		gFilterHandle,
+		&gServerPort,
+		&ObjectAttributes,
+		NULL,
+		PocConnectNotifyCallback,
+		PocDisconnectNotifyCallback,
+		PocMessageNotifyCallback,
 		1);
 
 	FltFreeSecurityDescriptor(SecurityDescriptor);
@@ -353,9 +366,7 @@ NTSTATUS PocInitCommPort()
 	}
 
 	return STATUS_SUCCESS;
-
 }
-
 
 VOID PocCloseCommPort()
 {
