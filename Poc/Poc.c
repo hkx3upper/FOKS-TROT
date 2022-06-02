@@ -922,13 +922,13 @@ PocPreCreateOperation (
         goto EXIT;
     }
 
-   /* Status = PocBypassIrrelevantFileExtension(FileExtension);
+    //Status = PocBypassIrrelevantFileExtension(FileExtension);
 
-    if (POC_IRRELEVENT_FILE_EXTENSION == Status)
-    {
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto EXIT;
-    }*/
+    //if (POC_IRRELEVENT_FILE_EXTENSION == Status)
+    //{
+    //    Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+    //    goto EXIT;
+    //}
     
 
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -952,7 +952,7 @@ PocPostCreateOperation(
     UNREFERENCED_PARAMETER( CompletionContext );
     UNREFERENCED_PARAMETER( Flags );
 
-    FLT_POSTOP_CALLBACK_STATUS Status;
+    FLT_POSTOP_CALLBACK_STATUS Status = FLT_POSTOP_FINISHED_PROCESSING;
 
     /*
     * 如果FO创建失败，不进入PocFindOrCreateStreamContext
@@ -963,7 +963,7 @@ PocPostCreateOperation(
         goto EXIT;
     }
 
-
+   
     if (!FltDoCompletionProcessingWhenSafe(Data,
         FltObjects,
         CompletionContext,
@@ -1274,7 +1274,7 @@ PocPostCloseOperation(
 
     ASSERT(CompletionContext != NULL);
 
-    FLT_POSTOP_CALLBACK_STATUS Status = 0;
+    FLT_POSTOP_CALLBACK_STATUS Status = FLT_POSTOP_FINISHED_PROCESSING;
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     StreamContext = CompletionContext;
 
@@ -1297,6 +1297,7 @@ PocPostCloseOperation(
             StreamContext = NULL;
         }
     }
+
 
     return Status;
 }
@@ -1526,7 +1527,7 @@ PocPostCloseOperationWhenSafe(
 
         //Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 
-        Status = PocFlushOriginalCache(FltObjects->Instance, StreamContext->FileName);
+        //Status = PocFlushOriginalCache(FltObjects->Instance, StreamContext->FileName);
 
 
         Status = PocAppendEncTailerToFile(FltObjects, StreamContext);

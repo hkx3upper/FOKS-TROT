@@ -14,7 +14,8 @@ KSTART_ROUTINE PocProcessIntegrityCheckThread;
 NTSTATUS PocProcessIntegrityCheck(
 	IN PEPROCESS EProcess)
 /*
-* 对进程的代码段进行校验
+* 对进程的代码段进行校验，后续也可将进程内的所有dll的代码段进行校验，
+* 防止hook；或者对进程本身做签名验证
 */
 {
 

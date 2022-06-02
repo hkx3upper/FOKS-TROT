@@ -59,3 +59,5 @@ NTSTATUS PocCreateProcessRulesNode(
 NTSTATUS PocCreateProcessInfoNode(
 	IN PPOC_PROCESS_RULES ProcessRules,
 	OUT PPOC_CREATED_PROCESS_INFO* OutProcessInfo);
+
+NTSTATUS PocIsUnauthorizedProcess(IN PWCHAR ProcessName);

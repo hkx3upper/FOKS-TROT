@@ -2,7 +2,6 @@
 #include "process.h"
 #include "utils.h"
 #include "processecure.h"
-#include "secure_process.h"
 
 LIST_ENTRY PocProcessRulesListHead = { 0 };
 PKSPIN_LOCK PocProcessRulesListSpinLock = { 0 };
@@ -51,9 +50,9 @@ NTSTATUS PocGetProcessName(
 
 	if (NULL == ProcessId)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+		/*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
 			("%s->PsGetProcessId %p failed.\n",
-				__FUNCTION__, eProcess));
+				__FUNCTION__, eProcess));*/
 
 		Status = STATUS_UNSUCCESSFUL;
 
@@ -137,9 +136,12 @@ NTSTATUS PocAddProcessRuleNode(const PWCHAR process, int access_mode)
 		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
 		goto EXIT;
 	}
+
 EXIT:
+
 	return Status;
 }
+
 
 NTSTATUS PocProcessRulesListInit()
 {

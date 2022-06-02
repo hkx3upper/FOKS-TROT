@@ -3,7 +3,6 @@
 #include "global.h"
 #include "context.h"
 #include "import.h"
-#include "allowed_extension.h"
 #include <wdm.h>
 
 
@@ -137,6 +136,7 @@ NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data)
  * 这两个进程会导致蓝屏，还没有解决方案，只能先忽略掉
  * 主要是StreamContext的FltAllocateContext函数，以及一些ExAllocatePoolWithTag，ExFreePool
  * 错误是IRQL_NOT_LESS_OR_EQUAL，在较高的IRQL访问分页内存导致的
+ * (已解决)
  */
 {
 
@@ -312,16 +312,23 @@ NTSTATUS PocQuerySymbolicLink(
 	{
 		//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocQuerySymbolicLink->ZwOpenSymbolicLinkObject2 failed. Status = 0x%x.\n", Status));
 		ExFreePoolWithTag(LinkTarget->Buffer, DOS_NAME_BUFFER_TAG);
+		goto EXIT;
 	}
 
-	{ // 将所有的'/'转为'\\'
-		wchar_t *p = wcsstr(LinkTarget->Buffer, L"/");
-		while (p)
-		{
-			*p = L'\\';
-			p = wcsstr(p + 1, L"/");
-		}
+	// 将所有的'/'转为'\\'
+	if (NULL == LinkTarget->Buffer)
+	{
+		Status = STATUS_INSUFFICIENT_RESOURCES;
+		goto EXIT;
 	}
+
+	wchar_t *p = wcsstr(LinkTarget->Buffer, L"/");
+	while (p)
+	{
+		*p = L'\\';
+		p = wcsstr(p + 1, L"/");
+	}
+	
 
 	Status = STATUS_SUCCESS;
 
@@ -498,6 +505,7 @@ NTSTATUS PocAnsi2Unicode(const char* ansi, wchar_t* unicode, int unicode_size)
 ---------------------------------------------------------*/
 {
 	POC_IS_PARAMETER_NULL(ansi);
+
 	POC_IS_PARAMETER_NULL(unicode);
 
 	ANSI_STRING ansi_str;
@@ -520,18 +528,18 @@ NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_
 函数描述:	将任何格式的路径转换为Dos路径
 作者:		wangzhankun
 时间：		2022.06.01
-更新维护:
+更新维护:	hkx3upper解决wcsstr大小写敏感问题
 ---------------------------------------------------------*/
 {
 	if (NULL == src_path)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocSetRelecantPath->src_path is NULL.\n"));
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAnyPath2DosPath->src_path is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
 	if (NULL == dest_path)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocSetRelecantPath->dest_path is NULL.\n"));
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocAnyPath2DosPath->dest_path is NULL.\n"));
 		return STATUS_INVALID_PARAMETER;
 	}
 
@@ -539,51 +547,63 @@ NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_
 
 	NTSTATUS Status = STATUS_SUCCESS;
 
-	{ // 判断 src_path的路径格式，确保dest_path是dos格式的路径
-		if (wcsstr(src_path, L"\\??\\") != NULL)
-		{
-			UNICODE_STRING u_src_path;
-			u_src_path.Buffer = src_path;
-			u_src_path.Length = (USHORT)(wcslen(src_path) * sizeof(WCHAR));
-			u_src_path.MaximumLength = u_src_path.Length + sizeof(WCHAR);
-
-			UNICODE_STRING u_dos_src_path;
-			Status = PocQuerySymbolicLink(&u_src_path, &u_dos_src_path);
-
-			RtlMoveMemory(dest_path, u_dos_src_path.Buffer, max_len_dest_path);
-		}
-		else if (wcsstr(src_path, L"\\device\\harddiskvolume") != NULL)
-		{
-			RtlMoveMemory(dest_path, src_path, wcslen(src_path) * sizeof(WCHAR));
-		}
-		else
-		{
-			Status = PocSymbolLinkPathToDosPath(src_path, dest_path);
-			if (Status != STATUS_SUCCESS)
-			{
-				goto EXIT;
-			}
-		}
-	}
-
+	// 判断 src_path的路径格式，确保dest_path是dos格式的路径
+	if (wcsstr(src_path, L"\\??\\") != NULL)
 	{
-		size_t len = wcslen(dest_path);
-		if (len == 0 || len * sizeof(WCHAR) > max_len_dest_path)
+		UNICODE_STRING u_src_path;
+		u_src_path.Buffer = src_path;
+		u_src_path.Length = (USHORT)(wcslen(src_path) * sizeof(WCHAR));
+		u_src_path.MaximumLength = u_src_path.Length + sizeof(WCHAR);
+
+		UNICODE_STRING u_dos_src_path;
+		Status = PocQuerySymbolicLink(&u_src_path, &u_dos_src_path);
+
+		if (Status != STATUS_SUCCESS)
 		{
-			Status = STATUS_UNSUCCESSFUL;
-			//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: dos_src_path is invalid, the length is %d.\n", __FUNCTION__, __FILE__, __LINE__, len));
+			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+				("%s->PocQuerySymbolicLink src_path = %ws failed. Status = 0x%x.\n",
+					__FUNCTION__, src_path, Status));
+			goto EXIT;
+		}
+
+		RtlMoveMemory(dest_path, u_dos_src_path.Buffer, max_len_dest_path);
+	}
+	else if (_wcsnicmp(src_path, L"\\Device\\Harddiskvolume", wcslen(L"\\Device\\Harddiskvolume")) == 0)
+	{
+		RtlMoveMemory(dest_path, src_path, wcslen(src_path) * sizeof(WCHAR));
+	}
+	else
+	{
+		Status = PocSymbolLinkPathToDosPath(src_path, dest_path);
+
+		if (Status != STATUS_SUCCESS)
+		{
+			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+				("%s->PocSymbolLinkPathToDosPath src_path = %ws failed. Status = 0x%x.\n",
+					__FUNCTION__, src_path, Status));
 			goto EXIT;
 		}
 	}
+	
 
-	{ // 将所有的'/'转为'\\'
-		wchar_t* p = wcsstr(dest_path, L"/");
-		while (p)
-		{
-			*p = L'\\';
-			p = wcsstr(p + 1, L"/");
-		}
+	
+	LONGLONG len = wcslen(dest_path);
+	if (len == 0 || len * sizeof(WCHAR) > max_len_dest_path)
+	{
+		Status = STATUS_UNSUCCESSFUL;
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->dos_src_path is invalid, the length is %I64d.\n", __FUNCTION__, len));
+		goto EXIT;
 	}
+	
+
+	// 将所有的'/'转为'\\'
+	wchar_t* p = wcsstr(dest_path, L"/");
+	while (p)
+	{
+		*p = L'\\';
+		p = wcsstr(p + 1, L"/");
+	}
+	
 
 EXIT:
 	return Status;
@@ -605,6 +625,7 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 	static WCHAR RelevantPath[256][1024] = { 0 };
 	static ULONG current_relevant_path_inx = 0;
 	static BOOLEAN first_called = TRUE;
+
 	if (first_called)
 	{
 		// 第一次运行时添加内置的机密文件夹
@@ -614,6 +635,7 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 		for (const PWCHAR* p = allowed_path; *p; p++)
 		{
 			Status = PocAnyPath2DosPath(*p, RelevantPath[current_relevant_path_inx], sizeof(RelevantPath[current_relevant_path_inx]));
+
 			if (Status != STATUS_SUCCESS)
 			{
 				//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnyPath2DosPath failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
@@ -688,7 +710,9 @@ NTSTATUS PocAddOrFindRelevantPath(IN CONST PWCHAR folder_name, BOOLEAN find_rele
 			Status = STATUS_SUCCESS;
 		}
 	}
+
 EXIT:
+
 	return Status;
 }
 
@@ -714,7 +738,7 @@ NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName)
 NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension)
 /*---------------------------------------------------------
 函数名称:	PocAddSecureExtensionW
-函数描述:	
+函数描述:	添加需过滤的文件扩展名宽字符函数
 作者:		wangzhankun
 时间：		2022.06.01
 更新维护:
@@ -745,18 +769,19 @@ NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension)
 NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 /*---------------------------------------------------------
 函数名称:	PocAddSecureExtension
-函数描述:
+函数描述:   添加需过滤的文件扩展名
 作者:		wangzhankun
 时间：		2022.06.01
 更新维护:
 ---------------------------------------------------------*/
 {
 	POC_IS_PARAMETER_NULL(extension);
+
 	WCHAR w_extension[32];
 	NTSTATUS Status = PocAnsi2Unicode(extension, w_extension, sizeof(w_extension));
 	if (Status != STATUS_SUCCESS)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: PocAnsi2Unicode failed, status is %08x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnsi2Unicode failed, status is %08x\n", __FUNCTION__, Status));
 		return Status;
 	}
 	Status = PocAddSecureExtensionW(w_extension);
@@ -767,7 +792,7 @@ NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 /*---------------------------------------------------------
 函数名称:	PocBypassIrrelevantBy_PathAndExtension
-函数描述:
+函数描述:	过滤文件扩展名和机密文件夹
 作者:		wangzhankun
 时间：		2022.06.01
 更新维护:
@@ -777,16 +802,17 @@ NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 	// TODO 改进返回值的表示方法
 	WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
 	WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
+
 	if (STATUS_SUCCESS == PocGetFileNameOrExtension(Data, FileExtension, FileName))
 	{
-		if (PocBypassRelevantPath(FileName) == STATUS_SUCCESS)
+		// TODO minifilter的PreCreate过滤整个文件系统的Create请求，所以先过滤简单的扩展名，如果符合，再过滤路径
+		if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION && 
+			PocBypassRelevantPath(FileName) == STATUS_SUCCESS)
 		{
-			if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION)
-			{
-				//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
+			//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
 
-				return POC_IS_TARGET_FILE_EXTENSION;
-			}
+			return POC_IS_TARGET_FILE_EXTENSION;
+
 		}
 	}
 	// return POC_IS_IRRELEVANT_PATH_AND_EXTENSION;

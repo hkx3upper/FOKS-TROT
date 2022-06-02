@@ -1,6 +1,7 @@
 
 #include "filefuncs.h"
 #include "context.h"
+#include "process.h"
 #include "global.h"
 #include "utils.h"
 #include "write.h"

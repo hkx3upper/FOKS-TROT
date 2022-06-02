@@ -6,6 +6,14 @@
 #include "process.h"
 #include "cipher.h"
 
+FLT_POSTOP_CALLBACK_STATUS
+PocPostSetInformationOperationWhenSafe(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags
+);
+
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreQueryInformationOperation(
@@ -317,6 +325,12 @@ EXIT:
 
     Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
 
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
+    }
+
     return Status;
 }
 
@@ -328,6 +342,32 @@ PocPostSetInformationOperation(
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
 )
+{
+    FLT_POSTOP_CALLBACK_STATUS Status = FLT_POSTOP_FINISHED_PROCESSING;
+
+    if (!FltDoCompletionProcessingWhenSafe(Data,
+        FltObjects,
+        CompletionContext,
+        Flags,
+        PocPostSetInformationOperationWhenSafe,
+        &Status))
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+            ("%s->FltDoCompletionProcessingWhenSafe failed. Status = 0x%x.\n",
+                __FUNCTION__,
+                Status));
+    }
+
+    return Status;
+}
+
+
+FLT_POSTOP_CALLBACK_STATUS
+PocPostSetInformationOperationWhenSafe(
+    _Inout_ PFLT_CALLBACK_DATA Data,
+    _In_ PCFLT_RELATED_OBJECTS FltObjects,
+    _In_opt_ PVOID CompletionContext,
+    _In_ FLT_POST_OPERATION_FLAGS Flags)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -381,9 +421,9 @@ PocPostSetInformationOperation(
         else
         {
             if (NULL != TargetFileObject->FileName.Buffer &&
-                wcslen(TargetFileObject->FileName.Buffer) * sizeof(WCHAR) < sizeof(NewFileName))
+                TargetFileObject->FileName.Length < sizeof(NewFileName))
             {
-                RtlMoveMemory(NewFileName, TargetFileObject->FileName.Buffer, wcslen(TargetFileObject->FileName.Buffer) * sizeof(WCHAR));
+                wcscpy(NewFileName, TargetFileObject->FileName.Buffer);
             }
             else
             {
@@ -425,18 +465,18 @@ PocPostSetInformationOperation(
                 ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
                 PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Clear StreamContext NewFileName = %ws.\n", __FUNCTION__, NewFileName));
-                
+
             }
             else
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocUpdateNameInStreamContext %ws to %ws.\n",
-                    StreamContext->FileName, NewFileName));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocUpdateNameInStreamContext %ws to %ws.\n",
+                    __FUNCTION__, StreamContext->FileName, NewFileName));
 
                 Status = PocUpdateNameInStreamContext(StreamContext, NewFileName);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocUpdateNameInStreamContext failed. Status = 0x%x\n", Status));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocUpdateNameInStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
                     goto EXIT;
                 }
 
@@ -454,10 +494,27 @@ PocPostSetInformationOperation(
 
             if (POC_IS_TARGET_FILE_EXTENSION == Status)
             {
+
+                Status = PocFindOrCreateStreamContext(
+                    Data->Iopb->TargetInstance,
+                    Data->Iopb->TargetFileObject,
+                    TRUE,
+                    &StreamContext,
+                    &ContextCreated);
+
+                if (STATUS_SUCCESS != Status)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->CtxFindOrCreateStreamContext failed. Status = 0x%x.\n",
+                        __FUNCTION__, Status));
+                    goto EXIT;
+                }
+
+                PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
+
+
                 /*
                 * POC_IS_TARGET_FILE_EXTENSION说明文件改成目标扩展名
                 * 重入一波，让我们的PostCreate读一下是否有Tailer(有可能是目标扩展名密文->其他扩展名->目标扩展名的情况)，
-                * 并且为其建立StreamContext
                 */
                 RtlZeroMemory(NewFileName, sizeof(NewFileName));
 
@@ -466,71 +523,45 @@ PocPostSetInformationOperation(
                 RtlInitUnicodeString(&uFileName, NewFileName);
 
                 InitializeObjectAttributes(&ObjectAttributes, &uFileName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
-                
+
+
                 Status = ZwCreateFile(
-                    &FileHandle, 
-                    0, 
-                    &ObjectAttributes, 
-                    &IoStatusBlock, 
-                    NULL, 
-                    FILE_ATTRIBUTE_NORMAL, 
-                    FILE_SHARE_READ | FILE_SHARE_WRITE, 
-                    FILE_OPEN, 
-                    FILE_NON_DIRECTORY_FILE, 
-                    NULL, 
+                    &FileHandle,
+                    0,
+                    &ObjectAttributes,
+                    &IoStatusBlock,
+                    NULL,
+                    FILE_ATTRIBUTE_NORMAL,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    FILE_OPEN,
+                    FILE_NON_DIRECTORY_FILE,
+                    NULL,
                     0);
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->ZwCreateFile failed. Status = 0x%x\n", Status));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ZwCreateFile failed. Status = 0x%x\n", __FUNCTION__, Status));
                     goto EXIT;
                 }
 
-                Status = PocFindOrCreateStreamContext(
-                    Data->Iopb->TargetInstance,
-                    Data->Iopb->TargetFileObject,
-                    FALSE,
-                    &StreamContext,
-                    &ContextCreated);
 
-                if (STATUS_SUCCESS != Status)
-                {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x\n", Status));
-                }
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
+                    __FUNCTION__, NewFileName, StreamContext->Flag));
 
-                if (NULL != StreamContext)
-                {
-                    if (POC_TAILER_WRONG_FILE_NAME != StreamContext->Flag &&
-                        POC_FILE_HAS_ENCRYPTION_TAILER != StreamContext->Flag)
-                    {
-                        /*
-                        * 说明是非目标扩展名文件重命名为目标扩展名文件，会设置Flag，并在PostClose中加密
-                        */
-                        PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
-                    }
 
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws Flag = 0x%x.\n\n",
-                        NewFileName, StreamContext->Flag));
-                }
-                else
-                {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->other extension rename to target extension NewFileName = %ws.\n\n",
-                        NewFileName));
-                }
-                
             }
         }
         else
         {
             Status = PocGetProcessName(Data, ProcessName);
 
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostSetInformationOperation->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %ws NewFileName = %ws\n",
-                Status, ProcessName, NewFileName));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x ProcessName = %ws NewFileName = %ws\n",
+                __FUNCTION__, Status, ProcessName, NewFileName));
         }
 
         break;
     }
-    
+
     }
 
 EXIT:

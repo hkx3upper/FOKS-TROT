@@ -1,5 +1,4 @@
 ﻿
-
 #include "read.h"
 #include "context.h"
 #include "utils.h"
@@ -14,7 +13,6 @@ PocPostReadOperationWhenSafe(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags);
-
 
 NTSTATUS PocPostReadDecrypt(
     _Inout_ PFLT_CALLBACK_DATA Data,
@@ -58,30 +56,6 @@ PocPreReadOperation(
     {
         // TODO round_to_size
     }
-
-    
-    Status = PocGetProcessName(Data, ProcessName);
-
-
-    /*
-    * 在这里调用FltGetFileNameInformation会出问题的
-    * 请去msdn查阅文档
-    */
-    //WCHAR FileName[POC_MAX_NAME_LENGTH] = {0};
-
-    //Status = PocGetFileNameOrExtension(Data, NULL, FileName);
-
-    //if (STATUS_SUCCESS != Status)
-    //{
-    //    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocGetFileNameOrExtension failed. Status = %d.\n", __FUNCTION__, Status));
-    //    goto ERROR;
-    //}
-
-    //if (wcsstr(ProcessName, L"Video.UI.exe") != NULL && wcsstr(FileName, L"mp4") != NULL)
-    //{
-    //    int a = 0;
-    //    a = 1;
-    //}
     
 
     // Find StreamContext
@@ -127,6 +101,8 @@ PocPreReadOperation(
         goto ERROR;
     }
 
+    Status = PocGetProcessName(Data, ProcessName);
+
     if (StartingVbo >= StreamContext->FileSize) //文件大小小于读取的起始位置
     {
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws read end of file.\n", ProcessName));
@@ -146,22 +122,14 @@ PocPreReadOperation(
     
 
     
-    if (!NonCachedIo)
+    if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
     {
-        if (StartingVbo + ByteCount > StreamContext->FileSize)
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %u. NewLength = %u\n",
-                                                ProcessName,
-                                                Data->Iopb->Parameters.Read.Length,
-                                                StreamContext->FileSize - StartingVbo));
-            Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
-            ByteCount = Data->Iopb->Parameters.Read.Length;
-            FltSetCallbackDataDirty(Data);
-        }
-
-        // CachedIo 不需要执行PostRead, 也不需要创建swappedbuffer
-        ret_status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto ERROR;
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreReadOperation->%ws cachedio read end of file Length = %d. NewLength = %d\n",
+            ProcessName,
+            Data->Iopb->Parameters.Read.Length,
+            StreamContext->FileSize - StartingVbo));
+        Data->Iopb->Parameters.Read.Length = StreamContext->FileSize - StartingVbo;
+        FltSetCallbackDataDirty(Data);
     }
     
 
@@ -305,34 +273,34 @@ PocPostReadOperation(
 
     FLT_POSTOP_CALLBACK_STATUS Status = FLT_POSTOP_FINISHED_PROCESSING;
 
-    {
-        PPOC_STREAM_CONTEXT StreamContext = ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext;
-        { // 隐藏文件标识尾
-            ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
-            ULONG FileSize = StreamContext->FileSize;
-            if (STATUS_SUCCESS == Data->IoStatus.Status)
-            {
-                if (StartingVbo + Data->IoStatus.Information > FileSize)
-                {
-                    Data->IoStatus.Information = FileSize - StartingVbo;
-                }
-            }
-            else if (!NT_SUCCESS(Data->IoStatus.Status) || (Data->IoStatus.Information == 0))
-            {
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                goto EXIT;
-            }
-        }
+    PPOC_STREAM_CONTEXT StreamContext = ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext;
+    ULONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.LowPart;
+    ULONG FileSize = StreamContext->FileSize;
 
-        { //非机密进程，不需要解密
-            if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                goto EXIT;
-            }
+    // 隐藏文件标识尾
+    if (STATUS_SUCCESS == Data->IoStatus.Status)
+    {
+        if (StartingVbo + Data->IoStatus.Information > FileSize)
+        {
+            Data->IoStatus.Information = FileSize - StartingVbo;
         }
     }
+    else if (!NT_SUCCESS(Data->IoStatus.Status) || (Data->IoStatus.Information == 0))
+    {
+        Status = FLT_POSTOP_FINISHED_PROCESSING;
+        goto EXIT;
+    }
+        
+
+    // 非机密进程，不需要解密
+    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->Don't decrypt ciphertext cache map.\n"));
+        Status = FLT_POSTOP_FINISHED_PROCESSING;
+        goto EXIT;
+    }
+
+
 
     if (FlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE)                                     // noncachedio
         && ((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext != NULL       // streamcontext不为NULL
@@ -390,11 +358,11 @@ PocPostReadOperation(
 
             goto EXIT;
         }
-        {
-            PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
-            PocPostReadDecrypt(Data, FltObjects, OrigBuffer, &tmp);
-            CompletionContext = tmp;
-        }
+        
+        PPOC_SWAP_BUFFER_CONTEXT tmp = (PPOC_SWAP_BUFFER_CONTEXT)CompletionContext;
+        PocPostReadDecrypt(Data, FltObjects, OrigBuffer, &tmp);
+        CompletionContext = tmp;
+        
     }
 
     Status = FLT_POSTOP_FINISHED_PROCESSING;
@@ -429,35 +397,11 @@ PocPostReadOperationWhenSafe(
     _In_ FLT_POST_OPERATION_FLAGS Flags)
 /*---------------------------------------------------------
 函数名称: PocPostReadOperationWhenSafe
-函数描述: 如下
+函数描述: We had an arbitrary users buffer without a MDL 
+          so we needed to get to a safe IRQL so we could lock it and then copy the data.
 作者:     wangzhankun
 更新维护: 
 ---------------------------------------------------------*/
-
-/*++
-
-Routine Description:
-
-    We had an arbitrary users buffer without a MDL so we needed to get
-    to a safe IRQL so we could lock it and then copy the data.
-
-Arguments:
-
-    Data - Pointer to the filter callbackData that is passed to us.
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance, its associated volume and
-        file object.
-
-    CompletionContext - Contains state from our PreOperation callback
-
-    Flags - Denotes whether the completion is successful or is being drained.
-
-Return Value:
-
-    FLT_POSTOP_FINISHED_PROCESSING - This is always returned.
-
---*/
 {
     PFLT_IO_PARAMETER_BLOCK iopb = Data->Iopb;
     PVOID origBuf = NULL;
@@ -467,9 +411,13 @@ Return Value:
     UNREFERENCED_PARAMETER(Flags);
     FLT_ASSERT(Data->IoStatus.Information != 0);
 
-    // https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltlockuserbuffer
-    // <= APC_LEVEL
-    // FltLockUserBuffer sets the MdlAddress (or OutputMdlAddress) member in the callback data parameter structure (FLT_PARAMETERS) to point to the MDL for the locked pages. If there is no MDL, FltLockUserBuffer allocates one.
+    /*
+    * https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltlockuserbuffer
+    * <= APC_LEVEL
+    * FltLockUserBuffer sets the MdlAddress (or OutputMdlAddress) member in the callback data 
+    * parameter structure (FLT_PARAMETERS) to point to the MDL for the locked pages. If there is no MDL, FltLockUserBuffer allocates one.
+    */
+    
     status = FltLockUserBuffer(Data); // 不需要使用者手动释放
 
     if (status != STATUS_SUCCESS)
@@ -540,10 +488,10 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
         ULONG LengthReturned = (ULONG)Data->IoStatus.Information;
         ULONG FileSize = StreamContext->FileSize;
 
-        LARGE_INTEGER byteOffset = {0};
-        ULONG readLength = 0;
+        LARGE_INTEGER ByteOffset = {0};
+        ULONG ReadLength = 0;
         PCHAR outReadBuffer = NULL;
-        ULONG bytesRead = 0;
+        ULONG BytesRead = 0;
 
         PCHAR TempNewBuffer = NULL;
         PCHAR TempOrigBuffer = NULL;
@@ -575,22 +523,22 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
             else if ((FileSize > StartingVbo + LengthReturned) &&
                      (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
             {
-                /*
+                 /*
                  * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
                  * 最后一次读的数据小于一个块的情况下，现在在倒数第二个块做一下处理
                  */
 
-                byteOffset.LowPart = StartingVbo + LengthReturned;
-                readLength = AES_BLOCK_SIZE;
+                ByteOffset.LowPart = StartingVbo + LengthReturned;
+                ReadLength = AES_BLOCK_SIZE;
 
                 Status = PocReadFileNoCache(
                     FltObjects->Instance,
                     FltObjects->Volume,
                     StreamContext->FileName,
-                    byteOffset,
-                    readLength,
+                    ByteOffset,
+                    ReadLength,
                     &outReadBuffer,
-                    &bytesRead);
+                    &BytesRead);
 
                 if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
                 {
@@ -601,9 +549,9 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                bytesRead = FileSize - (StartingVbo + LengthReturned);
+                BytesRead = FileSize - (StartingVbo + LengthReturned);
 
-                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempNewBuffer)
                 {
@@ -614,9 +562,9 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                // RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + bytesRead);//无意义
+                RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempOrigBuffer)
                 {
@@ -627,12 +575,12 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + bytesRead);
+                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
 
                 RtlMoveMemory(TempNewBuffer, NewBuffer, LengthReturned);
-                RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, bytesRead);
+                RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, BytesRead);
 
-                Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, LengthReturned + bytesRead, TempOrigBuffer);
+                Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, LengthReturned + BytesRead, TempOrigBuffer);
 
                 if (STATUS_SUCCESS != Status)
                 {
@@ -648,7 +596,7 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
             else if (FileSize > AES_BLOCK_SIZE &&
                      LengthReturned < AES_BLOCK_SIZE)
             {
-                /*
+                 /*
                  * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
                  * 最后一次读的数据小于一个块时
                  */
@@ -664,8 +612,8 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                byteOffset.LowPart = StartingVbo - VolumeContext->SectorSize;
-                readLength = VolumeContext->SectorSize;
+                ByteOffset.LowPart = StartingVbo - VolumeContext->SectorSize;
+                ReadLength = VolumeContext->SectorSize;
 
                 if (NULL != VolumeContext)
                 {
@@ -677,10 +625,10 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     FltObjects->Instance,
                     FltObjects->Volume,
                     StreamContext->FileName,
-                    byteOffset,
-                    readLength,
+                    ByteOffset,
+                    ReadLength,
                     &outReadBuffer,
-                    &bytesRead);
+                    &BytesRead);
 
                 if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
                 {
@@ -691,9 +639,9 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                ASSERT(readLength == bytesRead);
+                ASSERT(ReadLength == BytesRead);
 
-                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempNewBuffer)
                 {
@@ -704,9 +652,9 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + bytesRead);
+                RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + bytesRead, READ_BUFFER_TAG);
+                TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
                 if (NULL == TempOrigBuffer)
                 {
@@ -717,12 +665,12 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + bytesRead);
+                RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-                RtlMoveMemory(TempNewBuffer, outReadBuffer, bytesRead);
-                RtlMoveMemory(TempNewBuffer + bytesRead, NewBuffer, LengthReturned);
+                RtlMoveMemory(TempNewBuffer, outReadBuffer, BytesRead);
+                RtlMoveMemory(TempNewBuffer + BytesRead, NewBuffer, LengthReturned);
 
-                Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, LengthReturned + bytesRead, TempOrigBuffer);
+                Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, LengthReturned + BytesRead, TempOrigBuffer);
 
                 if (STATUS_SUCCESS != Status)
                 {
@@ -733,7 +681,7 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                     __leave;
                 }
 
-                RtlMoveMemory(OrigBuffer, TempOrigBuffer + bytesRead, LengthReturned);
+                RtlMoveMemory(OrigBuffer, TempOrigBuffer + BytesRead, LengthReturned);
             }
             else if (LengthReturned % AES_BLOCK_SIZE != 0)
             {
@@ -777,17 +725,17 @@ NTSTATUS PocPostReadDecrypt(_Inout_ PFLT_CALLBACK_DATA Data,
                 if (NULL != StreamContext->FileName)
                 {
                     // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("FileName = %ws\n", StreamContext->FileName));
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, FileName address is %p\n", __FUNCTION__, StreamContext->FileName));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName address is %p\n", __FUNCTION__, StreamContext->FileName));
                     // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%p\n", StreamContext->FileName));
                 }
                 else
                 {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s,FileName = NULL\n", __FUNCTION__));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName = NULL\n", __FUNCTION__));
                 }
             }
             else
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s, StreamContext = NULL\n", __FUNCTION__));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext = NULL\n", __FUNCTION__));
             }
 
             if (NULL != NewBuffer)

@@ -99,7 +99,8 @@ PocPreWriteOperation(
     Status = PocGetProcessName(Data, ProcessName);
 
 
-    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+    //    ("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
     //    Data->Iopb->Parameters.Write.ByteOffset.LowPart,
     //    Data->Iopb->Parameters.Write.Length,
     //    ProcessName, StreamContext->FileName,
@@ -274,7 +275,7 @@ PocPreWriteOperation(
 
         try 
         {
-            if (StreamContext->FileSize < AES_BLOCK_SIZE)
+            if (FileSize < AES_BLOCK_SIZE)
             {
                 /*
                 * 文件大小小于块大小
@@ -548,7 +549,7 @@ PocPostWriteOperation(
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    if (StreamContext->FileSize >= AES_BLOCK_SIZE)
+    if (StreamContext->FileSize >= AES_BLOCK_SIZE || 0 == StreamContext->FileSize)
     {
         StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.LowPart;
     }

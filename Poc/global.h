@@ -75,7 +75,16 @@ const static ULONG gTraceFlags = 0x00000001;
     {                                                                                                                               \
         if (_ptr == NULL)                                                                                                           \
         {                                                                                                                           \
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: POC_IS_PARAMETER_NULL: %s\n", __FUNCTION__, __FILE__, __LINE__, #_ptr)); \
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%->POC_IS_PARAMETER_NULL: %s\n", __FUNCTION__, #_ptr)); \
             return STATUS_INVALID_PARAMETER;                                                                                        \
         }                                                                                                                           \
     }
+
+
+#define MAX_SECURE_EXTENSION_COUNT  256
+
+extern WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][32];
+extern size_t secure_extension_count;
+extern PWCHAR allowed_extension[MAX_SECURE_EXTENSION_COUNT];
+extern PWCHAR allowed_path[];
+extern PWCHAR secure_process[];

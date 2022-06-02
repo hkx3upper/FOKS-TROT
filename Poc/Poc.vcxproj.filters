@@ -69,6 +69,9 @@
     <ClCompile Include="Ldrreloc.c">
       <Filter>Source Files\Secure</Filter>
     </ClCompile>
+    <ClCompile Include="Config.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils.h">
@@ -113,15 +116,9 @@
     <ClInclude Include="ldrreloc.h">
       <Filter>Header Files\secure</Filter>
     </ClInclude>
-    <ClInclude Include="allowed_extension.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="secure_process.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="README.md">
+    <None Include="..\README.md">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

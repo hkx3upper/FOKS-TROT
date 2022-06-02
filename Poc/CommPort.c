@@ -266,32 +266,38 @@ NTSTATUS PocMessageNotifyCallback(
 			case POC_ADD_SECURE_FODER:
 			{
 				WCHAR SecureFolder[POC_MAX_NAME_LENGTH] = {0};
+
 				Status = PocAnsi2Unicode(
 					((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder,
 					SecureFolder,
 					POC_MAX_NAME_LENGTH);
+
 				if (Status != STATUS_SUCCESS)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAnsi2Unicode failed. Status = 0x%x.\n", __FUNCTION__, __FILE__, __LINE__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnsi2Unicode failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
 				Status = PocAddOrFindRelevantPath(SecureFolder, FALSE);
+
 				if (Status != STATUS_SUCCESS)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAddOrFindRelevantPath failed. Status = 0x%x.\n", __FUNCTION__, __FILE__, __LINE__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAddOrFindRelevantPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
+
 				break;
 			}
 			case POC_ADD_SECURE_EXTENSION:
 			{
 				Status = PocAddSecureExtension(
 					((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension);
+
 				if (Status != STATUS_SUCCESS)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAddSecureExtension failed. Status = 0x%x.\n", __FUNCTION__, __FILE__, __LINE__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAddSecureExtension failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
+
 				break;
 			}
 			default:
