@@ -1497,11 +1497,9 @@ PocPostCloseOperationWhenSafe(
 
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
-    //LARGE_INTEGER Interval = { 0 };
-
-    //Interval.QuadPart = -20 * 1000 * 1000;              //2秒
 
     Status = PocGetProcessName(Data, ProcessName);
+
     /*
     * 添加加密标识尾的地方
     * 或者如果加密标识尾内的FileName错了，PostClose更新一下
@@ -1510,25 +1508,20 @@ PocPostCloseOperationWhenSafe(
     * POC_TAILER_WRONG_FILE_NAME是在PostCreate设置的
     * POC_RENAME_TO_ENCRYPT是在PostSetInfo设置的，针对的是tmp文件重命名为目标扩展文件的情况
     */
+
+    /*
+    * 如果商用的话，我觉得还需要用一个单独的线程去定期扫描没有写入文件标识尾的文件，
+    * 因为PostClose不一定能保证写入所有文件标识尾。
+    * 而且写入文件标识尾的时机，应该是在操作的进程结束以后延迟几秒写入，这样就不会有死锁了。（下面的重入加密也是同理）
+    * 我这里就不写了。这个项目里已经注册了进程的回调，判断一下ProcessInfo链表节点是否为NULL，就可以判断进程是否已结束。
+    * 
+    * 如果有人看到了这里，想实现一下的话，可以在github上提一下PR。代码规范在ReadMe中。
+    */
+
     if (POC_TO_APPEND_ENCRYPTION_TAILER == StreamContext->Flag ||
         POC_TAILER_WRONG_FILE_NAME == StreamContext->Flag)
     {
         PocUpdateFlagInStreamContext(StreamContext, POC_BEING_APPEND_ENC_TAILER);
-
-        /*
-        * 1.刷一下原始缓冲，一定程度上能避免Lazy Writer导致的死锁，
-        * 2.但是这里有可能会和IRP_MJ_NETWORK_QUERY_OPEN的Create死锁，所以把FaskIo禁掉了，
-        * 3.或者KeDelayExecutionThread几秒也行（不太行，会卡住...），
-        * 4.再不行判断判断PostClose这里指向Fcb的指针是否有效
-        * 如果无效，说明Fcb的引用已经为零，Close已经释放掉Fcb的内存了，此时做文件操作是最安全的
-        * 5.或者在StreamContext中加上一个OpenCount计数，等到没有其他的FileObject操作文件，再做文件操作
-        * 6.关于4.5两点还是要专门创建一个线程和链表去定时扫描未成功的操作，然后判断当前时机再执行
-        */
-
-        //Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
-
-        //Status = PocFlushOriginalCache(FltObjects->Instance, StreamContext->FileName);
-
 
         Status = PocAppendEncTailerToFile(FltObjects, StreamContext);
 
@@ -1559,7 +1552,7 @@ PocPostCloseOperationWhenSafe(
 
         /*
         * 其他类型文件重命名为目标扩展文件的情况，对重命名的文件进行加密
-        * 这个POC_RENAME_TO_ENCRYPT是在PostSetInformation中设置的
+        * 这个POC_RENAME_TO_ENCRYPT是在PostSetInformation中设置的。
         */
 
         Status = PocReentryToEncrypt(FltObjects->Instance, StreamContext->FileName);

@@ -15,6 +15,10 @@ NTSTATUS PocCreateProcessRulesNode(
 NTSTATUS PocGetProcessName(
 	IN PFLT_CALLBACK_DATA Data,
 	IN OUT PWCHAR ProcessName)
+/*
+* 这个函数，如果只是用作DbgPrint输出进程名的话，
+* 不要判断返回的Status，因为有可能获取进程名失败
+*/
 {
 
 	if (NULL == Data)

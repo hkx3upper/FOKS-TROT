@@ -392,6 +392,7 @@ PocPostSetInformationOperationWhenSafe(
 
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
+
     PAGED_CODE();
 
     if (STATUS_SUCCESS != Data->IoStatus.Status)
@@ -487,7 +488,7 @@ PocPostSetInformationOperationWhenSafe(
         {
 
             /*
-            * 到这里，说明原来的扩展名不是目标扩展名，所以没有进入PostCreate为其创建StreamContext
+            * 到这里，说明原来的扩展名不是目标扩展名，因为没有进入PostCreate为其创建StreamContext
             */
 
             Status = PocBypassIrrelevantBy_PathAndExtension(Data);
@@ -495,6 +496,13 @@ PocPostSetInformationOperationWhenSafe(
             if (POC_IS_TARGET_FILE_EXTENSION == Status)
             {
 
+                /*
+                * 非目标扩展名改成了目标扩展名，为其创建StreamContext
+                * 之所以单独创建StreamContext，而不是在下方的ZwCreateFile重入创建，
+                * 是因为Create创建到回到PostSetInfo之间有段时间间隔，这段时间如果System写入数据，会导致文件被加密，
+                * 我们的重入加密将不能再加密文件。
+                * 所以我们提前抢占StreamContext的标识。
+                */
                 Status = PocFindOrCreateStreamContext(
                     Data->Iopb->TargetInstance,
                     Data->Iopb->TargetFileObject,
