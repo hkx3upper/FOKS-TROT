@@ -15,7 +15,7 @@
 5.特权加密和特权解密使用重入（Reentry）的方式，使驱动加密解密文件；  
 6.解决FileRenameInformationEx和FileRenameInformation问题，因此可以自动加密解密docx，doc，pptx，ppt，xlsx，xls等使用tmp文件重命名方式读写的文件；  
 7.注册进程相关回调，使用链表统一管理授权与非授权进程；注册进程与线程对象回调，保护进程EPROCESS,ETHREAD对象；对授权进程的代码段进行完整性校验。  
-8.设置机密文件夹，文件处于该文件夹下才会透明加密，并可以从桌面PocUser配置机密文件夹与需管控的文件扩展名 @wangzhankun  
+8.设置机密文件夹，文件处于该文件夹下才会透明加密，并可以从桌面PocUser配置机密文件夹与目标扩展名 @wangzhankun  
 
 **It's a minifilter used for transparent-encrypting.**  
 **Companies** often choose to encrypt important data in order to prevent data leakage, which, however, will cause inconvenience to its applications. To this end, a double-cache transparent encryption and decryption system based on minifilter is designed in this project to realize the encryption and protection of files with specific file extension and facilitate data use on the premise of ensuring data security.   
