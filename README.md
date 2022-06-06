@@ -3,7 +3,7 @@
 [![Test](https://img.shields.io/badge/Test-passing-green.svg "Test")](https://github.com/hkx3upper "Test")
 [![PR](https://img.shields.io/badge/PR-welcome-blue.svg "PR")](https://github.com/hkx3upper/FOKS-TROT/pulls "PR")
 [![Issue](https://img.shields.io/badge/Issue-welcome-blue.svg "Issue")](https://github.com/hkx3upper/FOKS-TROT/issues "Issue")  
-<a href="https://github.com/hkx3upper/FOKS-TROT"><img align="right" width="231" height="117" src="C:\Users\hkx3upper\Desktop\FOKS-01.jpg" alt="FOKS-TROT"></a></br>
+<a href="https://github.com/hkx3upper/FOKS-TROT"><img align="right" width="231" height="117" src="https://user-images.githubusercontent.com/41336794/172169698-65afd346-38c4-4fd6-861b-20940a6ee493.jpg" alt="FOKS-TROT"></a></br>
 # FOKS-TROT  
 ## 基于Minifilter框架的双缓冲透明加解密驱动  
 ## It's a minifilter used for transparent-encrypting.  
