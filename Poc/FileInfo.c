@@ -133,7 +133,7 @@ PocPostQueryInformationOperation(
     case FileStandardInformation:
     {
         PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
-        Info->EndOfFile.LowPart = StreamContext->FileSize;
+        Info->EndOfFile.QuadPart = StreamContext->FileSize;
         break;
     }
     case FileAllInformation:
@@ -143,20 +143,20 @@ PocPostQueryInformationOperation(
             sizeof(FILE_BASIC_INFORMATION) +
             sizeof(FILE_STANDARD_INFORMATION))
         {
-            Info->StandardInformation.EndOfFile.LowPart = StreamContext->FileSize;
+            Info->StandardInformation.EndOfFile.QuadPart = StreamContext->FileSize;
         }
         break;
     }
     case FileEndOfFileInformation:
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
-        Info->EndOfFile.LowPart = StreamContext->FileSize;
+        Info->EndOfFile.QuadPart = StreamContext->FileSize;
         break;
     }
     case FileNetworkOpenInformation:
     {
         PFILE_NETWORK_OPEN_INFORMATION Info = (PFILE_NETWORK_OPEN_INFORMATION)InfoBuffer;
-        Info->EndOfFile.LowPart = StreamContext->FileSize;
+        Info->EndOfFile.QuadPart = StreamContext->FileSize;
         break;
     }
     default:
@@ -237,11 +237,11 @@ PocPreSetInformationOperation(
     {
         PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
 
-        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE)
+        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
         {
             ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.LowPart;
+            StreamContext->FileSize = Info->EndOfFile.QuadPart;
 
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -249,11 +249,11 @@ PocPreSetInformationOperation(
 
             Status = PocGetProcessName(Data, ProcessName);
 
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EndOfFile filename = %ws origin filesize = %d new filesize = %d process = %ws.\n",
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d process = %ws.\n",
                 __FUNCTION__,
                 StreamContext->FileName,
                 StreamContext->FileSize,
-                Info->EndOfFile.LowPart,
+                Info->EndOfFile.QuadPart,
                 ProcessName));
 
             FltSetCallbackDataDirty(Data);
@@ -265,34 +265,34 @@ PocPreSetInformationOperation(
     {
         PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
 
-        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE)
+        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
         {
             Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
             ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.LowPart;
+            StreamContext->FileSize = Info->EndOfFile.QuadPart;
 
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %d new filesize = %d.\n",
+            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
                 __FUNCTION__,
                 StreamContext->FileName,
                 StreamContext->FileSize,
-                Info->EndOfFile.LowPart));*/
+                Info->EndOfFile.QuadPart));*/
 
             FltSetCallbackDataDirty(Data);
         }
 
-        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE)
+        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
         {
             Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo Alloc filename = %ws origin filesize = %d new filesize = %d.\n",
+            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo Alloc filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
                 __FUNCTION__,
                 StreamContext->FileName,
                 StreamContext->FileSize,
-                Info->AllocationSize.LowPart));*/
+                Info->AllocationSize.QuadPart));*/
 
             FltSetCallbackDataDirty(Data);
         }
@@ -303,15 +303,15 @@ PocPreSetInformationOperation(
     {
         PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
 
-        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE)
+        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
         {
             Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->AllocInfo filename = %ws origin filesize = %d new filesize = %d.\n",
+            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->AllocInfo filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
                 __FUNCTION__,
                 StreamContext->FileName,
                 StreamContext->FileSize,
-                Info->AllocationSize.LowPart));*/
+                Info->AllocationSize.QuadPart));*/
 
             FltSetCallbackDataDirty(Data);
         }

@@ -35,10 +35,10 @@ PocPreWriteOperation(
 
     PCHAR OrigBuffer = NULL, NewBuffer = NULL;
     PMDL NewMdl = NULL;
-    ULONG NewBufferLength = 0;
+    LONGLONG NewBufferLength = 0;
 
     PFSRTL_ADVANCED_FCB_HEADER AdvancedFcbHeader = NULL;
-    ULONG FileSize = 0, StartingVbo = 0, ByteCount = 0, LengthReturned = 0;
+    LONGLONG FileSize = 0, StartingVbo = 0, ByteCount = 0, LengthReturned = 0;
 
     PPOC_VOLUME_CONTEXT VolumeContext = NULL;
     ULONG SectorSize = 0;
@@ -46,10 +46,10 @@ PocPreWriteOperation(
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
     
     ByteCount = Data->Iopb->Parameters.Write.Length;
-    StartingVbo = Data->Iopb->Parameters.Write.ByteOffset.LowPart;
+    StartingVbo = Data->Iopb->Parameters.Write.ByteOffset.QuadPart;
 
     AdvancedFcbHeader = FltObjects->FileObject->FsContext;
-    FileSize = AdvancedFcbHeader->FileSize.LowPart;
+    FileSize = AdvancedFcbHeader->FileSize.QuadPart;
 
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
@@ -100,8 +100,8 @@ PocPreWriteOperation(
 
 
     //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
-    //    ("\nPocPreWriteOperation->enter StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
-    //    Data->Iopb->Parameters.Write.ByteOffset.LowPart,
+    //    ("\nPocPreWriteOperation->enter StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //    Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
     //    Data->Iopb->Parameters.Write.Length,
     //    ProcessName, StreamContext->FileName,
     //    NonCachedIo,
@@ -109,8 +109,8 @@ PocPreWriteOperation(
 
     if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %d ProcessName = %ws File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
+            Data->Iopb->Parameters.Write.ByteOffset.QuadPart, ProcessName, StreamContext->FileName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
@@ -119,8 +119,8 @@ PocPreWriteOperation(
     if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
         && NonCachedIo)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %d ProcessName = %ws File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.LowPart, ProcessName, StreamContext->FileName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
+            Data->Iopb->Parameters.Write.ByteOffset.QuadPart, ProcessName, StreamContext->FileName));
 
         Data->IoStatus.Status = STATUS_SUCCESS;
         Data->IoStatus.Information = Data->Iopb->Parameters.Write.Length;
@@ -202,7 +202,7 @@ PocPreWriteOperation(
             LengthReturned = FileSize - StartingVbo;
         }
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %d.\n", LengthReturned));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %I64d.\n", LengthReturned));
         
         if (Data->Iopb->Parameters.Write.MdlAddress != NULL) 
         {
@@ -257,7 +257,7 @@ PocPreWriteOperation(
         if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION)) 
         {
 
-            NewMdl = IoAllocateMdl(NewBuffer, NewBufferLength, FALSE, FALSE, NULL);
+            NewMdl = IoAllocateMdl(NewBuffer, (ULONG)NewBufferLength, FALSE, FALSE, NULL);
 
             if (NewMdl == NULL) 
             {
@@ -285,9 +285,9 @@ PocPreWriteOperation(
 
                 Status = PocAesECBEncrypt(
                     OrigBuffer,
-                    LengthReturned,
+                    (ULONG)LengthReturned,
                     NewBuffer,
-                    &LengthReturned);
+                    &(ULONG)LengthReturned);
 
                 if (STATUS_SUCCESS != Status)
                 {
@@ -338,9 +338,9 @@ PocPreWriteOperation(
 
                     Status = PocAesECBEncrypt(
                         OrigBuffer, 
-                        LengthReturned, 
+                        (ULONG)LengthReturned,
                         NewBuffer, 
-                        &LengthReturned);
+                        &(ULONG)LengthReturned);
 
                     if (STATUS_SUCCESS != Status)
                     {
@@ -353,7 +353,7 @@ PocPreWriteOperation(
 
                     Data->Iopb->Parameters.Write.Length -= SectorSize;
                     FltSetCallbackDataDirty(Data);
-                    SwapBufferContext->OriginalLength = ByteCount;
+                    SwapBufferContext->OriginalLength = (ULONG)ByteCount;
                 }
 
             }
@@ -376,7 +376,7 @@ PocPreWriteOperation(
 
                 Status = PocAesECBEncrypt_CiphertextStealing(
                     StreamContext->PageNextToLastForWrite.Buffer, 
-                    LengthReturned,
+                    (ULONG)LengthReturned,
                     NewBuffer);
 
                 if (STATUS_SUCCESS != Status)
@@ -388,11 +388,11 @@ PocPreWriteOperation(
                     goto ERROR;
                 }
 
-                Data->Iopb->Parameters.Write.ByteOffset.LowPart = StreamContext->PageNextToLastForWrite.StartingVbo;
-                Data->Iopb->Parameters.Write.Length = SectorSize + ByteCount;
+                Data->Iopb->Parameters.Write.ByteOffset.QuadPart = StreamContext->PageNextToLastForWrite.StartingVbo;
+                Data->Iopb->Parameters.Write.Length = (ULONG)(SectorSize + ByteCount);
                 FltSetCallbackDataDirty(Data);
 
-                SwapBufferContext->OriginalLength = ByteCount;
+                SwapBufferContext->OriginalLength = (ULONG)ByteCount;
 
             }
             else if (LengthReturned % AES_BLOCK_SIZE != 0)
@@ -403,7 +403,7 @@ PocPreWriteOperation(
 
                 Status = PocAesECBEncrypt_CiphertextStealing(
                     OrigBuffer, 
-                    LengthReturned, 
+                    (ULONG)LengthReturned,
                     NewBuffer);
 
                 if (STATUS_SUCCESS != Status)
@@ -424,9 +424,9 @@ PocPreWriteOperation(
 
                 Status = PocAesECBEncrypt(
                     OrigBuffer, 
-                    LengthReturned, 
+                    (ULONG)LengthReturned,
                     NewBuffer, 
-                    &LengthReturned);
+                    &(ULONG)LengthReturned);
 
                 if (STATUS_SUCCESS != Status)
                 {
@@ -472,9 +472,9 @@ PocPreWriteOperation(
         }
 
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %d Length = %d ProcessName = %ws File = %ws.\n\n",
-            Data->Iopb->Parameters.Write.ByteOffset.LowPart,
-            LengthReturned,
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n\n",
+            Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
+            (ULONG)LengthReturned,
             ProcessName,
             StreamContext->FileName));
 
@@ -549,9 +549,11 @@ PocPostWriteOperation(
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    if (StreamContext->FileSize >= AES_BLOCK_SIZE || 0 == StreamContext->FileSize)
+    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) && 
+        StreamContext->FileSize >= AES_BLOCK_SIZE ||
+        0 == StreamContext->FileSize)
     {
-        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.LowPart;
+        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
     }
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 

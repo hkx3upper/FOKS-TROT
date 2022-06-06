@@ -4,22 +4,11 @@
 #include "context.h"
 #include "utils.h"
 
-typedef struct _POC_ENCRYPTION_HEADER
-{
-	CHAR Flag[32];
-	WCHAR FileName[POC_MAX_NAME_LENGTH];
-	CHAR EncryptionAlgorithmType[32];
-	CHAR KeyAndCiphertextHash[32];
-
-} POC_ENCRYPTION_HEADER, * PPOC_ENCRYPTION_HEADER;
-
-extern POC_ENCRYPTION_HEADER EncryptionHeader;
-
 typedef struct _POC_ENCRYPTION_TAILER
 {
 	CHAR Flag[32];
 	WCHAR FileName[POC_MAX_NAME_LENGTH];
-	ULONG FileSize;
+	LONGLONG FileSize;
 	BOOLEAN IsCipherText;
 	CHAR EncryptionAlgorithmType[32];
 	CHAR KeyAndCiphertextHash[32];
@@ -44,17 +33,14 @@ NTSTATUS PocWriteFileIntoCache(
 	IN PCHAR WriteBuffer,
 	IN ULONG WriteLength);
 
-NTSTATUS PocCreateExtraFileForEncryptionHeader(
-	IN PFLT_CALLBACK_DATA Data,
-	IN PWCHAR FileName);
-
 NTSTATUS PocCreateFileForEncTailer(
 	IN PCFLT_RELATED_OBJECTS FltObjects,
 	IN PPOC_STREAM_CONTEXT StreamContext,
 	IN PWCHAR ProcessName);
 
 NTSTATUS PocAppendEncTailerToFile(
-	IN PCFLT_RELATED_OBJECTS FltObjects,
+	IN PFLT_VOLUME Volume,
+	IN PFLT_INSTANCE Instance,
 	IN PPOC_STREAM_CONTEXT StreamContext);
 
 NTSTATUS PocNtfsFlushAndPurgeCache(
@@ -72,3 +58,5 @@ NTSTATUS PocReentryToEncrypt(
 NTSTATUS PocReentryToDecrypt(
 	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName);
+
+KSTART_ROUTINE PocAppendEncTailerThread;

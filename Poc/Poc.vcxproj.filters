@@ -72,6 +72,9 @@
     <ClCompile Include="Config.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Dpc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils.h">
@@ -115,6 +118,9 @@
     </ClInclude>
     <ClInclude Include="ldrreloc.h">
       <Filter>Header Files\secure</Filter>
+    </ClInclude>
+    <ClInclude Include="dpc.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

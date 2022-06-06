@@ -9,6 +9,7 @@
 #define DOS_NAME_BUFFER_TAG				'dnbt'
 #define POC_PR_LIST_TAG					'prBt'
 #define POC_KAPC_BUFFER_TAG				'apCt'
+#define POC_DPC_BUFFER_TAG              'dPBt'
 
 #define POC_KEBUGCHECK_TAG              'mofo'      //Unknown bugcheck code (6d6f666f)
 
@@ -39,6 +40,7 @@
 #define POC_ENCRYPTION_HEADER_EA_TYPE	"AES-128 ECB"
 
 extern PFLT_FILTER gFilterHandle;
+extern PDEVICE_OBJECT gDeviceObject;
 
 
 #define PTDBG_TRACE_ROUTINES            0x00000001
@@ -81,7 +83,8 @@ const static ULONG gTraceFlags = 0x00000001;
     }
 
 
-#define MAX_SECURE_EXTENSION_COUNT  256
+#define MAX_SECURE_EXTENSION_COUNT              256
+#define POC_MAX_AUTHORIZED_PROCESS_COUNT        32
 
 extern WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][32];
 extern size_t secure_extension_count;

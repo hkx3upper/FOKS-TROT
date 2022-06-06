@@ -10,6 +10,8 @@ typedef struct _POC_SWAP_BUFFER_CONTEXT
     PPOC_STREAM_CONTEXT StreamContext;
     ULONG OriginalLength;
 
+    CHAR FileName[POC_MAX_NAME_LENGTH];
+
 }POC_SWAP_BUFFER_CONTEXT, * PPOC_SWAP_BUFFER_CONTEXT;
 
 
@@ -27,5 +29,3 @@ PocPostWriteOperation(
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
 );
-
-#pragma alloc_text(PAGE, PocPostWriteOperation)

@@ -14,63 +14,9 @@ ZwQueryInformationProcess(
 );
 
 NTKERNELAPI
-BOOLEAN
-NTAPI
-PsIsProtectedProcess(IN PEPROCESS Process);
-
-NTKERNELAPI
 PVOID
 NTAPI
-PsGetProcessWow64Process(IN PEPROCESS Process);;
-
-
-typedef enum _KAPC_ENVIRONMENT
-{
-    OriginalApcEnvironment,
-    AttachedApcEnvironment,
-    CurrentApcEnvironment,
-    InsertApcEnvironment
-} KAPC_ENVIRONMENT, * PKAPC_ENVIRONMENT;
-
-typedef VOID(NTAPI* PKNORMAL_ROUTINE)(
-    PVOID NormalContext,
-    PVOID SystemArgument1,
-    PVOID SystemArgument2
-    );
-
-typedef VOID(NTAPI* PKKERNEL_ROUTINE)(
-    PRKAPC Apc,
-    PKNORMAL_ROUTINE* NormalRoutine,
-    PVOID* NormalContext,
-    PVOID* SystemArgument1,
-    PVOID* SystemArgument2
-    );
-
-typedef VOID(NTAPI* PKRUNDOWN_ROUTINE)(PRKAPC Apc);
-
-NTKERNELAPI
-VOID
-NTAPI
-KeInitializeApc(
-    IN PKAPC Apc,
-    IN PKTHREAD Thread,
-    IN KAPC_ENVIRONMENT ApcStateIndex,
-    IN PKKERNEL_ROUTINE KernelRoutine,
-    IN PKRUNDOWN_ROUTINE RundownRoutine,
-    IN PKNORMAL_ROUTINE NormalRoutine,
-    IN KPROCESSOR_MODE ApcMode,
-    IN PVOID NormalContext
-);
-
-NTKERNELAPI
-BOOLEAN
-NTAPI
-KeInsertQueueApc(
-    PKAPC Apc,
-    PVOID SystemArgument1,
-    PVOID SystemArgument2,
-    KPRIORITY Increment
-);
+PsGetProcessWow64Process(IN PEPROCESS Process);
 
 
 typedef struct _SYSTEM_PROCESS_INFORMATION {

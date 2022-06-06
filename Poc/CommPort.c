@@ -142,6 +142,8 @@ NTSTATUS PocMessageNotifyCallback(
 					(lpFileName - uFileName.Buffer + 1) * sizeof(WCHAR));
 
 				RtlInitUnicodeString(&uSymbolLinkName, wSymbolLinkName);
+				uSymbolLinkName.MaximumLength = sizeof(wSymbolLinkName);
+
 
 				Status = PocQuerySymbolicLink(
 					&uSymbolLinkName,

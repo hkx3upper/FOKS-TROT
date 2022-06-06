@@ -16,5 +16,3 @@ PocPostReadOperation(
     _In_opt_ PVOID CompletionContext,
     _In_ FLT_POST_OPERATION_FLAGS Flags
 );
-
-#pragma alloc_text(PAGE, PocPostReadOperation)

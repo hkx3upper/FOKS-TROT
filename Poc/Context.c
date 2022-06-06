@@ -3,6 +3,8 @@
 #include "context.h"
 #include "fileobject.h"
 #include "cipher.h"
+#include "import.h"
+#include "utils.h"
 
 
 NTSTATUS
@@ -275,235 +277,6 @@ Return Value:
 }
 
 
-NTSTATUS
-PocCreateStreamHandleContext(
-    _Outptr_ PPOC_STREAMHANDLE_CONTEXT* StreamHandleContext
-)
-/*++
-
-Routine Description:
-
-    This routine creates a new stream context
-
-Arguments:
-
-    StreamContext         - Returns the stream context
-
-Return Value:
-
-    Status
-
---*/
-{
-    NTSTATUS status;
-    PPOC_STREAMHANDLE_CONTEXT streamHandleContext;
-
-    PAGED_CODE();
-
-    //
-    //  Allocate a stream context
-    //
-
-
-    status = FltAllocateContext(gFilterHandle,
-        FLT_STREAMHANDLE_CONTEXT,
-        POC_STREAMHANDLE_CONTEXT_SIZE,
-        PagedPool,
-        &streamHandleContext);
-
-    if (!NT_SUCCESS(status)) {
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateStreamHandleContext->Failed to allocate stream handle context with status 0x%x \n",
-            status));
-
-        return status;
-    }
-
-    //
-    //  Initialize the newly created context
-    //
-
-    RtlZeroMemory(streamHandleContext, POC_STREAMHANDLE_CONTEXT_SIZE);
-
-
-    *StreamHandleContext = streamHandleContext;
-
-    return STATUS_SUCCESS;
-}
-
-
-NTSTATUS
-PocCreateOrReplaceStreamHandleContext(
-    _In_ PFLT_CALLBACK_DATA Cbd,
-    _In_ BOOLEAN ReplaceIfExists,
-    _Outptr_ PPOC_STREAMHANDLE_CONTEXT* StreamHandleContext,
-    _Out_opt_ PBOOLEAN ContextReplaced
-)
-/*++
-
-Routine Description:
-
-    This routine creates a stream handle context for the target stream
-    handle. Optionally, if the context already exists, this routine
-    replaces it with the new context and releases the old context
-
-Arguments:
-
-    Cbd                   - Supplies a pointer to the callbackData which
-                            declares the requested operation.
-    ReplaceIfExists       - Supplies if the stream handle context must be
-                            replaced if already present
-    StreamContext         - Returns the stream context
-    ContextReplaced       - Returns if an existing context was replaced
-
-Return Value:
-
-    Status
-
---*/
-{
-    NTSTATUS status;
-    PPOC_STREAMHANDLE_CONTEXT streamHandleContext = NULL;
-    PPOC_STREAMHANDLE_CONTEXT oldStreamHandleContext = NULL;
-
-    PAGED_CODE();
-
-    *StreamHandleContext = NULL;
-    if (ContextReplaced != NULL) *ContextReplaced = FALSE;
-
-    //
-    //  Create a stream context
-    //
-
-    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Creating stream handle context (FileObject = %p, Instance = %p)\n",
-            Cbd->Iopb->TargetFileObject,
-            Cbd->Iopb->TargetInstance));*/
-
-    status = PocCreateStreamHandleContext(&streamHandleContext);
-
-    if (!NT_SUCCESS(status)) {
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Failed to create stream context with status 0x%x. (FileObject = %p, Instance = %p)\n",
-                status,
-                Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance));
-
-        return status;
-    }
-
-    //
-    //  Set the new context we just allocated on the file object
-    //
-
-    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("[Ctx]: Setting stream context %p (FileObject = %p, Instance = %p, ReplaceIfExists = %x)\n",
-            streamHandleContext,
-            Cbd->Iopb->TargetFileObject,
-            Cbd->Iopb->TargetInstance,
-            ReplaceIfExists));*/
-
-    status = FltSetStreamHandleContext(Cbd->Iopb->TargetInstance,
-        Cbd->Iopb->TargetFileObject,
-        ReplaceIfExists ? FLT_SET_CONTEXT_REPLACE_IF_EXISTS : FLT_SET_CONTEXT_KEEP_IF_EXISTS,
-        streamHandleContext,
-        &oldStreamHandleContext);
-
-    if (!NT_SUCCESS(status)) {
-
-        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Failed to set stream handle context with status 0x%x. (FileObject = %p, Instance = %p)\n",
-                status,
-                Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance));*/
-
-        //
-        //  We release the context here because FltSetStreamContext failed
-        //
-        //  If FltSetStreamContext succeeded then the context will be returned
-        //  to the caller. The caller will use the context and then release it
-        //  when he is done with the context.
-        //
-
-        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Releasing stream handle context %p (FileObject = %p, Instance = %p)\n",
-                streamHandleContext,
-                Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance));*/
-
-        FltReleaseContext(streamHandleContext);
-
-        if (status != STATUS_FLT_CONTEXT_ALREADY_DEFINED) {
-
-            //
-            //  FltSetStreamContext failed for a reason other than the context already
-            //  existing on the stream. So the object now does not have any context set
-            //  on it. So we return failure to the caller.
-            //
-
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Failed to set stream context with status 0x%x != STATUS_FLT_CONTEXT_ALREADY_DEFINED. (FileObject = %p, Instance = %p)\n",
-                    status,
-                    Cbd->Iopb->TargetFileObject,
-                    Cbd->Iopb->TargetInstance));
-
-            return status;
-        }
-
-        //
-        //  We will reach here only if we have failed with STATUS_FLT_CONTEXT_ALREADY_DEFINED
-        //  and we can fail with that code only if the context already exists and we have used
-        //  the FLT_SET_CONTEXT_KEEP_IF_EXISTS flag
-
-        FLT_ASSERT(ReplaceIfExists == FALSE);
-
-        //
-        //  Race condition. Someone has set a context after we queried it.
-        //  Use the already set context instead
-        //
-
-        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Stream context already defined. Retaining old stream context %p (FileObject = %p, Instance = %p)\n",
-                oldStreamHandleContext,
-                Cbd->Iopb->TargetFileObject,
-                Cbd->Iopb->TargetInstance));*/
-
-        //
-        //  Return the existing context. Note that the new context that we allocated has already been
-        //  realeased above.
-        //
-
-        streamHandleContext = oldStreamHandleContext;
-        status = STATUS_SUCCESS;
-
-    }
-    else {
-
-        //
-        //  FltSetStreamContext has suceeded. The new context will be returned
-        //  to the caller. The caller will use the context and then release it
-        //  when he is done with the context.
-        //
-        //  However, if we have replaced an existing context then we need to
-        //  release the old context so as to decrement the ref count on it.
-        //
-        //  Note that the memory allocated to the objects within the context
-        //  will be freed in the context cleanup and must not be done here.
-        //
-
-        if (ReplaceIfExists &&
-            oldStreamHandleContext != NULL) {
-
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateOrReplaceStreamHandleContext->Releasing old stream handle context %p (FileObject = %p, Instance = %p)\n",
-                    oldStreamHandleContext,
-                    Cbd->Iopb->TargetFileObject,
-                    Cbd->Iopb->TargetInstance));
-
-            FltReleaseContext(oldStreamHandleContext);
-            if (ContextReplaced != NULL) *ContextReplaced = TRUE;
-        }
-    }
-
-    *StreamHandleContext = streamHandleContext;
-
-    return status;
-}
-
-
 VOID
 PocContextCleanup(
     _In_ PFLT_CONTEXT Context,
@@ -608,4 +381,212 @@ VOID PocUpdateFlagInStreamContext(
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
+}
+
+
+NTSTATUS PocUpdateStreamContextProcessInfo(
+    IN PFLT_CALLBACK_DATA Data,
+    IN OUT PPOC_STREAM_CONTEXT StreamContext)
+{
+    if (NULL == StreamContext)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StreamContext is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    PEPROCESS eProcess = NULL;
+    HANDLE ProcessId = NULL;
+
+    PPOC_CREATED_PROCESS_INFO OutProcessInfo = NULL;
+
+    ULONG Free = 0xFF;
+
+    eProcess = FltGetRequestorProcess(Data);
+
+    if (NULL == eProcess) {
+
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EProcess FltGetRequestorProcess failed.\n", __FUNCTION__));
+        Status = STATUS_UNSUCCESSFUL;
+        goto EXIT;
+    }
+
+    if (_strnicmp((PCHAR)PsGetProcessImageFileName(eProcess), "explorer.exe", strlen("explorer.exe")) == 0)
+    {
+        goto EXIT;
+    }
+
+
+    ProcessId = PsGetProcessId(eProcess);
+
+    if (NULL == ProcessId)
+    {
+        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+            ("%s->PsGetProcessId %p failed.\n",
+                __FUNCTION__, eProcess));*/
+        Status = STATUS_UNSUCCESSFUL;
+        goto EXIT;
+    }
+
+    Status = PocFindProcessInfoNodeByPidEx(
+        ProcessId,
+        &OutProcessInfo,
+        FALSE,
+        FALSE);
+
+    if (STATUS_SUCCESS != Status || 
+        OutProcessInfo->OwnedProcessRule->Access != POC_PR_ACCESS_READWRITE)
+    {
+        goto EXIT;
+    }
+
+    Status = STATUS_UNSUCCESSFUL;
+
+
+    for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
+    {
+
+        if (NULL == StreamContext->ProcessInfo[i] && 0xFF == Free)
+        {
+            Free = i;
+        }
+
+        
+        if (OutProcessInfo == StreamContext->ProcessInfo[i])
+        {
+            Status = STATUS_SUCCESS;
+            goto EXIT;
+        }
+
+    }
+
+    if (STATUS_SUCCESS != Status)
+    {
+        StreamContext->ProcessInfo[Free] = OutProcessInfo;
+        StreamContext->ProcessId[Free] = ProcessId;
+
+        Status = STATUS_SUCCESS;
+    }
+
+EXIT:
+
+    return Status;
+}
+
+
+VOID PocInstanceSetupWhenSafe(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PVOID Context)
+{
+    UNREFERENCED_PARAMETER(DeviceObject);
+    UNREFERENCED_PARAMETER(Context);
+
+
+    ASSERT(NULL != Context);
+    PFLT_VOLUME Volume = Context;
+
+    PPOC_VOLUME_CONTEXT ctx = NULL;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    WCHAR Buffer[POC_MAX_NAME_LENGTH * 2] = { 0 };
+    UNICODE_STRING VolumeName = { 0 };
+
+    try {
+
+        //
+        //  Allocate a volume context structure.
+        //
+
+        status = FltAllocateContext(gFilterHandle,
+            FLT_VOLUME_CONTEXT,
+            sizeof(POC_VOLUME_CONTEXT),
+            NonPagedPool,
+            &ctx);
+
+        if (!NT_SUCCESS(status)) {
+
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s->FltAllocateContext failed. Status = 0x%x.\n", __FUNCTION__, status));
+
+            leave;
+        }
+
+        //
+        //  Always get the volume properties, so I can get a sector size
+        //
+
+        ctx->SectorSize = PocQueryVolumeSectorSize(Volume);
+
+        //
+        //  Save the sector size in the context for later use.  Note that
+        //  we will pick a minimum sector size if a sector size is not
+        //  specified.
+        //
+
+        if (0 == ctx->SectorSize)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInstanceSetup->PocQueryVolumeSectorSize failed. SectorSize = %d\n",
+                ctx->SectorSize));
+            leave;
+        }
+
+
+        status = FltSetVolumeContext(Volume,
+            FLT_SET_CONTEXT_KEEP_IF_EXISTS,
+            ctx,
+            NULL);
+
+
+        //
+        //  It is OK for the context to already be defined.
+        //
+
+        if (status == STATUS_FLT_CONTEXT_ALREADY_DEFINED) {
+
+            status = STATUS_SUCCESS;
+            leave;
+        }
+        else if (!NT_SUCCESS(status))
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s->FltSetVolumeContext failed. Status = 0x%x.\n", __FUNCTION__, status));
+
+            leave;
+        }
+
+
+        RtlInitUnicodeString(&VolumeName, Buffer);
+        VolumeName.MaximumLength = sizeof(Buffer);
+
+        status = FltGetVolumeName(Volume, &VolumeName, NULL);
+
+        if (!NT_SUCCESS(status)) {
+
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s->FltGetVolumeName failed. Status = 0x%x.\n", __FUNCTION__, status));
+        }
+
+        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+            ("%s->Attach to volume = %p name = %ws success.\n",
+                __FUNCTION__,
+                Volume, VolumeName.Buffer));*/
+
+    }
+    finally {
+
+        //
+        //  Always release the context.  If the set failed, it will free the
+        //  context.  If not, it will remove the reference added by the set.
+        //  Note that the name buffer in the ctx will get freed by the context
+        //  cleanup routine.
+        //
+
+        if (ctx) {
+
+            FltReleaseContext(ctx);
+        }
+    }
+
+    return;
 }

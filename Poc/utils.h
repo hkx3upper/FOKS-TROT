@@ -3,7 +3,6 @@
 #include "global.h"
 #include "import.h"
 
-NTSTATUS PocAnsi2Unicode(const char *ansi, wchar_t *unicode, int unicode_size);
 
 /**
  * @brief 获取要读取的文件的路径和拓展名
@@ -15,18 +14,16 @@ NTSTATUS PocGetFileNameOrExtension(
 	IN OUT PWCHAR FileExtension, 
 	IN OUT PWCHAR FileName);
 
-ULONG PocQueryEndOfFileInfo(
+LONGLONG PocQueryEndOfFileInfo(
 	IN PFLT_INSTANCE Instance, 
 	IN PFILE_OBJECT FileObject);
 
 NTSTATUS PocSetEndOfFileInfo(
 	IN PFLT_INSTANCE Instance, 
 	IN PFILE_OBJECT FileObject, 
-	IN ULONG FileSize);
+	IN LONGLONG FileSize);
 
 USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume);
-
-NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data);
 
 /**
  * @brief 该函数用于查找或者添加一个新的机密文件夹路径。
@@ -37,8 +34,6 @@ NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data);
 NTSTATUS PocAddOrFindRelevantPath(
 	IN CONST PWCHAR folder_name, 
 	BOOLEAN find_relevant_path);
-
-NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName);
 
 NTSTATUS PocParseFileNameExtension(
 	IN PWCHAR FileName, 
@@ -70,6 +65,11 @@ NTSTATUS PocQuerySymbolicLink(
 NTSTATUS PocSymbolLinkPathToDosPath(
 	IN PWCHAR Path,
 	IN OUT PWCHAR DosPath);
+
+NTSTATUS PocAnsi2Unicode(
+	const char* ansi, 
+	wchar_t* unicode, 
+	int unicode_size);
 
 /**
  * @brief 添加一个新的需要进行透明加密的文件的拓展名

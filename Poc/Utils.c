@@ -67,7 +67,7 @@ EXIT:
 }
 
 
-ULONG PocQueryEndOfFileInfo(
+LONGLONG PocQueryEndOfFileInfo(
 	IN PFLT_INSTANCE Instance,
 	IN PFILE_OBJECT FileObject)
 {
@@ -84,19 +84,19 @@ ULONG PocQueryEndOfFileInfo(
 		return 0;
 	}
 
-	return StandardInfo.EndOfFile.LowPart;
+	return StandardInfo.EndOfFile.QuadPart;
 }
 
 
 NTSTATUS PocSetEndOfFileInfo(
 	IN PFLT_INSTANCE Instance,
 	IN PFILE_OBJECT FileObject,
-	IN ULONG FileSize)
+	IN LONGLONG FileSize)
 {
 	FILE_END_OF_FILE_INFORMATION EndOfFileInfo = {0};
 	NTSTATUS Status;
 
-	EndOfFileInfo.EndOfFile.LowPart = FileSize;
+	EndOfFileInfo.EndOfFile.QuadPart = FileSize;
 
 	Status = FltSetInformationFile(Instance, FileObject, &EndOfFileInfo, sizeof(FILE_END_OF_FILE_INFORMATION), FileEndOfFileInformation);
 
@@ -128,72 +128,6 @@ USHORT PocQueryVolumeSectorSize(IN PFLT_VOLUME Volume)
 	}
 
 	return max(VolProp->SectorSize, MIN_SECTOR_SIZE);
-}
-
-
-NTSTATUS PocBypassBsodProcess(IN PFLT_CALLBACK_DATA Data)
-/*
- * 这两个进程会导致蓝屏，还没有解决方案，只能先忽略掉
- * 主要是StreamContext的FltAllocateContext函数，以及一些ExAllocatePoolWithTag，ExFreePool
- * 错误是IRQL_NOT_LESS_OR_EQUAL，在较高的IRQL访问分页内存导致的
- * (已解决)
- */
-{
-
-	NTSTATUS Status = 0;
-
-	PEPROCESS eProcess = NULL;
-
-	eProcess = FltGetRequestorProcess(Data);
-
-	if (!eProcess)
-	{
-
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-					 ("%s->FltGetRequestorProcess failed.\n.", __FUNCTION__));
-		return STATUS_UNSUCCESSFUL;
-	}
-
-	if (strncmp((PCHAR)PsGetProcessImageFileName(eProcess), "SearchUI.exe", strlen("SearchUI.exe")) == 0 ||
-		strncmp((PCHAR)PsGetProcessImageFileName(eProcess), "RuntimeBroker.exe", strlen("RuntimeBroker.exe")) == 0)
-	{
-		Status = POC_IS_BSOD_PROCESS;
-	}
-
-	return Status;
-}
-
-
-NTSTATUS PocBypassIrrelevantPath(IN PWCHAR FileName)
-/*
- * 这个函数还是必要的，因为一些关键路径比如Windows System32等路径还是不应该加密的
- */
-{
-
-	if (NULL == FileName)
-	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocBypassWordBackupFile->FileName is NULL.\n"));
-		return STATUS_INVALID_PARAMETER;
-	}
-
-	NTSTATUS Status = STATUS_SUCCESS;
-
-	PWCHAR lpFileName = NULL;
-
-	lpFileName = FileName;
-
-	while (lpFileName < FileName + wcslen(FileName))
-	{
-
-		if (wcsncmp(lpFileName, L"Windows\\System32", wcslen(L"Windows\\System32")) == 0)
-		{
-			return POC_IS_IRRELEVENT_PATH;
-		}
-
-		lpFileName++;
-	}
-
-	return Status;
 }
 
 
@@ -467,6 +401,7 @@ NTSTATUS PocSymbolLinkPathToDosPath(
 	RtlZeroMemory(lpPath + 1, wcslen(lpPath + 1) * sizeof(WCHAR));
 
 	RtlInitUnicodeString(&uSymbolLinkName, wSymbolLinkName);
+	uSymbolLinkName.MaximumLength = sizeof(wSymbolLinkName);
 
 	Status = PocQuerySymbolicLink(
 		&uSymbolLinkName,
@@ -504,9 +439,22 @@ NTSTATUS PocAnsi2Unicode(const char* ansi, wchar_t* unicode, int unicode_size)
 更新维护:
 ---------------------------------------------------------*/
 {
-	POC_IS_PARAMETER_NULL(ansi);
+	//警告C6271	向“DbgPrint”传递了额外参数 : _Param_(3) 未由格式字符串使用
 
-	POC_IS_PARAMETER_NULL(unicode);
+	//POC_IS_PARAMETER_NULL(ansi);
+	//POC_IS_PARAMETER_NULL(unicode);
+
+	if (NULL == ansi)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ansi is NULL.\n", __FUNCTION__));
+		return STATUS_INVALID_PARAMETER;
+	}
+
+	if (NULL == unicode)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->unicode is NULL.\n", __FUNCTION__));
+		return STATUS_INVALID_PARAMETER;
+	}
 
 	ANSI_STRING ansi_str;
 	UNICODE_STRING unicode_str;
@@ -568,7 +516,7 @@ NTSTATUS PocAnyPath2DosPath(const PWCHAR src_path, PWCHAR dest_path, const size_
 
 		RtlMoveMemory(dest_path, u_dos_src_path.Buffer, max_len_dest_path);
 	}
-	else if (_wcsnicmp(src_path, L"\\Device\\Harddiskvolume", wcslen(L"\\Device\\Harddiskvolume")) == 0)
+	else if (_wcsnicmp(src_path, L"\\Device\\HarddiskVolume", wcslen(L"\\Device\\HarddiskVolume")) == 0)
 	{
 		RtlMoveMemory(dest_path, src_path, wcslen(src_path) * sizeof(WCHAR));
 	}
@@ -775,7 +723,15 @@ NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 更新维护:
 ---------------------------------------------------------*/
 {
-	POC_IS_PARAMETER_NULL(extension);
+	//警告C6271	向“DbgPrint”传递了额外参数 : _Param_(3) 未由格式字符串使用
+
+	//POC_IS_PARAMETER_NULL(extension);
+
+	if (NULL == extension)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->extension is NULL.\n", __FUNCTION__));
+		return STATUS_INVALID_PARAMETER;
+	}
 
 	WCHAR w_extension[32];
 	NTSTATUS Status = PocAnsi2Unicode(extension, w_extension, sizeof(w_extension));

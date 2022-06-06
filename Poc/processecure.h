@@ -2,7 +2,7 @@
 
 #include "global.h"
 
-NTSTATUS PocProcessInit();
+NTSTATUS PocInitProcess();
 
 VOID PocProcessCleanup();
 

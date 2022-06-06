@@ -39,6 +39,7 @@
     <ClCompile Include="Config.c" />
     <ClCompile Include="Context.c" />
     <ClCompile Include="Cipher.c" />
+    <ClCompile Include="Dpc.c" />
     <ClCompile Include="FileFuncs.c" />
     <ClCompile Include="FileInfo.c" />
     <ClCompile Include="FileObject.c" />
@@ -216,6 +217,7 @@
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="cipher.h" />
+    <ClInclude Include="dpc.h" />
     <ClInclude Include="filefuncs.h" />
     <ClInclude Include="fileinfo.h" />
     <ClInclude Include="fileobject.h" />
