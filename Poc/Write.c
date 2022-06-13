@@ -100,23 +100,26 @@ PocPreWriteOperation(
 
 
     //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
-    //    ("\nPocPreWriteOperation->enter StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //    ("\nPocPreWriteOperation->enter StartingVbo = %I64d Length = %d FileSize = %I64d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
     //    Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
     //    Data->Iopb->Parameters.Write.Length,
+    //    FileSize,
     //    ProcessName, StreamContext->FileName,
     //    NonCachedIo,
     //    PagingIo));
 
-    if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
+    if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag && NonCachedIo)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+            ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
             Data->Iopb->Parameters.Write.ByteOffset.QuadPart, ProcessName, StreamContext->FileName));
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
 
-    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
+    if (FltObjects->FileObject->SectionObjectPointer == 
+        StreamContext->ShadowSectionObjectPointers
         && NonCachedIo)
     {
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
@@ -148,6 +151,10 @@ PocPreWriteOperation(
     {
         if (FileSize < AES_BLOCK_SIZE)
         {
+            /*
+            * FSD的Write会帮我们扩展文件大小，可以在FastFat的Write中搜索ExtendingFile
+            */
+            SwapBufferContext->OriginalLength = Data->Iopb->Parameters.Write.Length;
 
             ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
@@ -155,19 +162,22 @@ PocPreWriteOperation(
             
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-            Status = PocSetEndOfFileInfo(
-                FltObjects->Instance, 
-                FltObjects->FileObject, 
-                AES_BLOCK_SIZE);
-
-            if (STATUS_SUCCESS != Status)
+            if (StartingVbo + Data->Iopb->Parameters.Write.Length < AES_BLOCK_SIZE)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSetEndOfFileInfo failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_PREOP_COMPLETE;
-                goto ERROR;
+                Data->Iopb->Parameters.Write.Length = AES_BLOCK_SIZE - (ULONG)StartingVbo;
+
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->ExtendingFile success. Filesize = %I64d StartingVbo = %I64d OriginWriteLength = %d NewLength = %d.\n",
+                        __FUNCTION__,
+                        FileSize,
+                        StartingVbo,
+                        StreamContext->FileSize,
+                        Data->Iopb->Parameters.Write.Length));
+
+                FltSetCallbackDataDirty(Data);
+
             }
+
         }
 
     }
@@ -466,11 +476,6 @@ PocPreWriteOperation(
 
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-        if (StartingVbo + ByteCount >= FileSize && NonCachedIo)
-        {
-            PocUpdateFlagInStreamContext(StreamContext, POC_TO_APPEND_ENCRYPTION_TAILER);
-        }
-
 
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n\n",
             Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
@@ -545,6 +550,15 @@ PocPostWriteOperation(
 
     SwapBufferContext = CompletionContext;
     StreamContext = SwapBufferContext->StreamContext;
+
+
+    if (Data->Iopb->Parameters.Write.ByteOffset.QuadPart + 
+        Data->Iopb->Parameters.Write.Length >= 
+        ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart && 
+        BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE))
+    {
+        PocUpdateFlagInStreamContext(StreamContext, POC_TO_APPEND_ENCRYPTION_TAILER);
+    }
 
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);

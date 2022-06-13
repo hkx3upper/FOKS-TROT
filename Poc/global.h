@@ -10,6 +10,7 @@
 #define POC_PR_LIST_TAG					'prBt'
 #define POC_KAPC_BUFFER_TAG				'apCt'
 #define POC_DPC_BUFFER_TAG              'dPBt'
+#define POC_MESSAGE_TAG                 'mEtg'
 
 #define POC_KEBUGCHECK_TAG              'mofo'      //Unknown bugcheck code (6d6f666f)
 
@@ -33,8 +34,13 @@
 #define POC_RENAME_TO_ENCRYPT			0xFFFF7766
 #define POC_PROCESS_INTEGRITY_DAMAGE    0xFFFF7765
 
+#define POC_OBJECT_NOT_FOUND		    0xFFFF7764
+#define POC_OBJECT_REPEAT			    0xFFFF7763
+
 
 #define POC_MAX_NAME_LENGTH				320
+#define POC_EXTENSION_SIZE			    32
+
 
 #define POC_ENCRYPTION_HEADER_FLAG		"FOKS-TROT"
 #define POC_ENCRYPTION_HEADER_EA_TYPE	"AES-128 ECB"
@@ -86,8 +92,10 @@ const static ULONG gTraceFlags = 0x00000001;
 #define MAX_SECURE_EXTENSION_COUNT              256
 #define POC_MAX_AUTHORIZED_PROCESS_COUNT        32
 
-extern WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][32];
+extern WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][POC_EXTENSION_SIZE];
 extern size_t secure_extension_count;
 extern PWCHAR allowed_extension[MAX_SECURE_EXTENSION_COUNT];
 extern PWCHAR allowed_path[];
 extern PWCHAR secure_process[];
+extern WCHAR RelevantPath[256][POC_MAX_NAME_LENGTH];
+extern ULONG current_relevant_path_inx;

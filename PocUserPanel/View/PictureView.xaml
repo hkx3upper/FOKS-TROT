@@ -1,0 +1,82 @@
+﻿<UserControl x:Class="ModernDashboard.View.PictureView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:ModernDashboard.View"
+             mc:Ignorable="d" 
+             d:DesignHeight="500" d:DesignWidth="650">
+
+    <UserControl.Style>
+        <Style>
+            <Style.Triggers>
+                <EventTrigger RoutedEvent="UserControl.Loaded">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             From="0.0"
+                                             To="1.0"
+                                             Duration="0:0:0.5" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Style>
+
+    <Grid Background="#303030">
+
+        <!--Title-->
+
+        <TextBlock Text="机密文件夹配置"
+                   FontSize="24"
+                   FontFamily="/Fonts/OpenSans-Regular.ttf #Open Sans Regular"
+                   Foreground="#DDDDDD"
+                   HorizontalAlignment="Left"
+                   VerticalAlignment="Top"
+                   Margin="5,12,0,0"/>
+
+        <Button Content="刷新" HorizontalAlignment="Left" Margin="212,13,0,0" VerticalAlignment="Top" Width="75" Click="Folder_Click"/>
+
+        <!--Content-->
+
+        <ItemsControl
+                      Height="350"
+                      Width="650"
+                      Margin="0,40,0,0">
+
+            <!--Uniform Grid-->
+
+            <ListBox BorderBrush="DodgerBlue" 
+                     BorderThickness="2" 
+                     x:Name="ListBox" 
+                     HorizontalAlignment="Left" 
+                     VerticalAlignment="Top"  Margin="0,0,0,0" 
+                     ScrollViewer.HorizontalScrollBarVisibility="Visible" 
+                     ScrollViewer.VerticalScrollBarVisibility="Visible" 
+                     Height="225"
+                     Width="500"
+                     Foreground="#DDDDDD"/>
+
+            <Button x:Name="RemoveFolder" 
+                    Content="删除" 
+                    HorizontalAlignment="Right" 
+                    VerticalAlignment="Bottom" 
+                    Margin="0,-30,50,0" 
+                    Click="RemoveFolder_Click"/>
+
+
+            <Label x:Name="Title" Content="路径:" FontSize="15" Foreground="#DDDDDD" Margin="0,18,0,0" 
+                   HorizontalAlignment="Left" VerticalAlignment="Top" FontWeight="Bold"/>
+            <TextBox x:Name="FolderName" Foreground="#DDDDDD" HorizontalAlignment="Center" 
+                     Margin="-105,-22,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="454"/>
+            <Button x:Name="OpenFolder" Content="打开" HorizontalAlignment="Right" 
+                    VerticalAlignment="Top" Click="OpenFolder_Click" Margin="0,-30,50,0"/>
+
+            <Button x:Name="AddFolder" Content="添加" HorizontalAlignment="Right" 
+                    Click="AddFolder_Click" Margin="0,17,50,0" VerticalAlignment="Top"/>
+
+        </ItemsControl>
+
+    </Grid>
+</UserControl>

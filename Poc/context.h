@@ -23,6 +23,9 @@ typedef struct _POC_STREAM_CONTEXT
     ULONG Flag;
     PWCHAR FileName;
 
+    PFLT_VOLUME Volume;
+    PFLT_INSTANCE Instance;
+
     /*
     * FileSize中存着明文==密文大小，因为写进去的尾是NonCachedIo，所以有扇区对齐，不是紧接着密文写的
     * FileSize主要是用于隐藏尾部，在PostQueryInformation和PreRead，PostRead中使用
@@ -35,15 +38,16 @@ typedef struct _POC_STREAM_CONTEXT
 
     BOOLEAN IsCipherText;
 
-    // 将倒数第二个扇区大小的块存在StreamContext->PageNextToLastForWrite中
+    /*
+    * 将倒数第二个扇区大小的块存在StreamContext->PageNextToLastForWrite中
+    */
     POC_PAGE_TEMP_BUFFER PageNextToLastForWrite;
 
-    // 等待操作的进程结束以后，写入文件标识尾用
-    PPOC_CREATED_PROCESS_INFO ProcessInfo[POC_MAX_AUTHORIZED_PROCESS_COUNT];
+    /*
+    * 等待操作的授权进程结束以后，写入文件标识尾用
+    */
     HANDLE ProcessId[POC_MAX_AUTHORIZED_PROCESS_COUNT];
     BOOLEAN AppendTailerThreadStart;
-    PFLT_VOLUME Volume;
-    PFLT_INSTANCE Instance;
 
     PERESOURCE Resource;
 
@@ -65,8 +69,8 @@ typedef struct _POC_VOLUME_CONTEXT
 } POC_VOLUME_CONTEXT, * PPOC_VOLUME_CONTEXT;
 
 #define MIN_SECTOR_SIZE 0x200
-#define POC_VOLUME_CONTEXT_SIZE                 sizeof(POC_VOLUME_CONTEXT)
 #define POC_VOLUME_CONTEXT_TAG                  'cVxC'
+#define POC_VOLUME_CONTEXT_SIZE                 sizeof(POC_VOLUME_CONTEXT)
 
 
 NTSTATUS PocCreateStreamContext(

@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ShowMeTheXAMLGeneratedFileName Condition="'$(ShowMeTheXAMLGeneratedFileName)' == '' Or $(ShowMeTheXAMLGeneratedFileName) == '*Undefined*'">ShowMeTheXaml_XamlDictionary</ShowMeTheXAMLGeneratedFileName>
+        <ShowMeTheXAMLAssemblyPath Condition="$(ShowMeTheXAMLAssemblyDirectory) == '' Or $(ShowMeTheXAMLAssemblyDirectory) == '*Undefined*'">$(MSBuildThisFileDirectory)../../tools/</ShowMeTheXAMLAssemblyPath>
+        <ShowMeTheXAMLAssemblyDirectory Condition="$(MSBuildRuntimeType) == 'Core'">$(ShowMeTheXAMLAssemblyPath)netcore</ShowMeTheXAMLAssemblyDirectory>
+        <ShowMeTheXAMLAssemblyDirectory Condition="$(MSBuildRuntimeType) != 'Core'">$(ShowMeTheXAMLAssemblyPath)netframework</ShowMeTheXAMLAssemblyDirectory>
+        <ShowMeTheXAMLLanguage Condition="'$(ShowMeTheXAMLLanguage)' == ''">CSharp</ShowMeTheXAMLLanguage>
+    </PropertyGroup>
+
+    <UsingTask TaskName="ShowMeTheXAML.MSBuild.BuildXamlDictionaryTask"
+               AssemblyFile="$(ShowMeTheXAMLAssemblyDirectory)\ShowMeTheXAML.MSBuild.dll"/>
+
+    <Target Name="BuildXamlDictionary" BeforeTargets="BeforeCompile">
+        <BuildXamlDictionaryTask
+          PageMarkup="@(Page)"
+          OutputPath="$(IntermediateOutputPath)"
+          OutputLanguage="$(ShowMeTheXAMLLanguage)"
+          GeneratedFileName="$(ShowMeTheXAMLGeneratedFileName)">
+
+            <Output ItemName="_BuildXamlDictionaryOutput" TaskParameter="GeneratedCodeFiles" />
+        </BuildXamlDictionaryTask>
+
+        <ItemGroup>
+            <Compile Include="@(_BuildXamlDictionaryOutput)" />
+        </ItemGroup>
+    </Target>
+</Project>

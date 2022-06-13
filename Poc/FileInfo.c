@@ -380,7 +380,6 @@ PocPostSetInformationOperationWhenSafe(
     PFILE_RENAME_INFORMATION Buffer = NULL;
 
     WCHAR NewFileName[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR NewFileExtension[POC_MAX_NAME_LENGTH] = { 0 };
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
@@ -422,9 +421,11 @@ PocPostSetInformationOperationWhenSafe(
         else
         {
             if (NULL != TargetFileObject->FileName.Buffer &&
-                TargetFileObject->FileName.Length < sizeof(NewFileName))
+                TargetFileObject->FileName.MaximumLength < sizeof(NewFileName))
             {
-                wcscpy(NewFileName, TargetFileObject->FileName.Buffer);
+                RtlMoveMemory(NewFileName, 
+                    TargetFileObject->FileName.Buffer, 
+                    TargetFileObject->FileName.MaximumLength);
             }
             else
             {
@@ -432,8 +433,6 @@ PocPostSetInformationOperationWhenSafe(
             }
         }
 
-
-        PocParseFileNameExtension(NewFileName, NewFileExtension);
 
         Status = PocFindOrCreateStreamContext(
             Data->Iopb->TargetInstance,
@@ -461,11 +460,13 @@ PocPostSetInformationOperationWhenSafe(
 
                 StreamContext->IsCipherText = FALSE;
                 StreamContext->FileSize = 0;
-                RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+                RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
 
                 ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Clear StreamContext NewFileName = %ws.\n", __FUNCTION__, NewFileName));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+                    ("%s->Clear StreamContext NewFileName = %ws.\n", 
+                    __FUNCTION__, NewFileName));
 
             }
             else

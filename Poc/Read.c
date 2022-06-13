@@ -95,22 +95,22 @@ PocPreReadOperation(
 
     if (!StreamContext->IsCipherText)
     {
-        // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->leave. File is plaintext.\n", __FUNCTION__));
+       /* PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->leave. File %ws is plaintext.\n", 
+            __FUNCTION__, StreamContext->FileName));*/
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
-    if (!FLT_IS_IRP_OPERATION(Data))
-    {
-        Status = FLT_PREOP_DISALLOW_FASTIO;
-        goto ERROR;
-    }
 
     Status = PocGetProcessName(Data, ProcessName);
 
     if (StartingVbo >= StreamContext->FileSize)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws read end of file.\n", __FUNCTION__, ProcessName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws read end of file %ws. StartingVbo = %I64d FileSize = %I64d\n", 
+            __FUNCTION__, ProcessName, 
+            StreamContext->FileName,
+            StartingVbo, StreamContext->FileSize));
+
         Data->IoStatus.Status = STATUS_END_OF_FILE;
         Data->IoStatus.Information = 0;
 
@@ -122,11 +122,13 @@ PocPreReadOperation(
 
     if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws cachedio read end of file Length = %d. NewLength = %I64d\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws cachedio read end of file %ws Length = %d. NewLength = %I64d\n",
             __FUNCTION__,
             ProcessName,
+            StreamContext->FileName,
             Data->Iopb->Parameters.Read.Length,
             StreamContext->FileSize - StartingVbo));
+
         Data->Iopb->Parameters.Read.Length = (ULONG)(StreamContext->FileSize - StartingVbo);
         FltSetCallbackDataDirty(Data);
     }
@@ -150,6 +152,10 @@ PocPreReadOperation(
     if (FltObjects->FileObject->SectionObjectPointer ==
         StreamContext->ShadowSectionObjectPointers)
     {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Don't decrypt ciphertext cache map. Process = %ws FileName = %ws.\n", 
+            __FUNCTION__, ProcessName,
+            StreamContext->FileName));
+
         SwapBufferContext->StreamContext = StreamContext;
         *CompletionContext = SwapBufferContext;
         Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -318,7 +324,6 @@ PocPostReadOperation(
     if (FltObjects->FileObject->SectionObjectPointer ==
         StreamContext->ShadowSectionObjectPointers)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Don't decrypt ciphertext cache map.\n", __FUNCTION__));
         Status = FLT_POSTOP_FINISHED_PROCESSING;
         goto EXIT;
     }

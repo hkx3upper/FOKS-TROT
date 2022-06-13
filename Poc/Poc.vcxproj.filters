@@ -127,5 +127,11 @@
     <None Include="..\README.md">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="..\CHANGELOG.md">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\TESTMANUAL.md">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

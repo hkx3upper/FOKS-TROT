@@ -7,6 +7,7 @@
 PFLT_PORT gServerPort = NULL;
 PFLT_PORT gClientPort = NULL;
 
+PCHAR ReplyBuffer = NULL;
 
 NTSTATUS PocConnectNotifyCallback(
 	IN PFLT_PORT ClientPort,
@@ -23,9 +24,19 @@ NTSTATUS PocConnectNotifyCallback(
 
 	PAGED_CODE();
 
-	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocConnectNotifyCallback->connect with user.\n"));
+	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocConnectNotifyCallback->connect with user.\n"));
 
 	gClientPort = ClientPort;
+
+	ReplyBuffer = ExAllocatePoolWithTag(NonPagedPool, MESSAGE_SIZE, POC_MESSAGE_TAG);
+
+	if (NULL == ReplyBuffer)
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag ReplyBuffer failed.\n", __FUNCTION__));
+		return STATUS_INSUFFICIENT_RESOURCES;
+	}
+
+	RtlZeroMemory(ReplyBuffer, MESSAGE_SIZE);
 
 	return STATUS_SUCCESS;
 }
@@ -39,7 +50,13 @@ VOID PocDisconnectNotifyCallback(
 
 	PAGED_CODE();
 
-	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocDisconnectNotifyCallback->disconnect with user.\n"));
+	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocDisconnectNotifyCallback->disconnect with user.\n\n"));
+
+	if (NULL != ReplyBuffer)
+	{
+		ExFreePoolWithTag(ReplyBuffer, POC_MESSAGE_TAG);
+		ReplyBuffer = NULL;
+	}
 
 	FltCloseClientPort(gFilterHandle, &gClientPort);
 }
@@ -52,6 +69,9 @@ NTSTATUS PocMessageNotifyCallback(
 	IN PVOID OutputBuffer,
 	IN ULONG OutputBufferLength,
 	OUT PULONG ReturnOutputBufferLength)
+/* 
+* InputBuffer和ReplyBuffer不能指向一块内存
+*/
 {
 
 	UNREFERENCED_PARAMETER(PortCookie);
@@ -82,6 +102,9 @@ NTSTATUS PocMessageNotifyCallback(
 			case POC_HELLO_KERNEL:
 			{
 				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s", (Buffer + sizeof(POC_MESSAGE_HEADER))));
+
+				Status = MessageHeader.Command;
+
 				break;
 			}
 			case POC_PRIVILEGE_ENCRYPT:
@@ -120,7 +143,9 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+						("%s->POC_PRIVILEGE_DECRYPT->RtlAnsiStringToUnicodeString failed status = 0x%x.\n", 
+							__FUNCTION__, Status));
 					goto EXIT;
 				}
 
@@ -151,7 +176,9 @@ NTSTATUS PocMessageNotifyCallback(
 
 				if (STATUS_SUCCESS != Status)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", __FUNCTION__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+						("%s->POC_PRIVILEGE_DECRYPT->PocQuerySymbolicLink failed ststus = 0x%x.\n", 
+							__FUNCTION__, Status));
 					goto EXIT;
 				}
 
@@ -191,13 +218,15 @@ NTSTATUS PocMessageNotifyCallback(
 					}
 				}
 
+				Status = MessageHeader.Command;
+
 				break;
 			}
 			case POC_ADD_PROCESS_RULES:
 			{
 				/*
-				 * 桌面添加进程规则
-				 */
+				* 桌面添加进程规则
+				*/
 				PPOC_PROCESS_RULES ProcessRules = NULL;
 
 				ANSI_STRING aProcessName = {0};
@@ -205,7 +234,7 @@ NTSTATUS PocMessageNotifyCallback(
 				WCHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
 				WCHAR DosProcessName[POC_MAX_NAME_LENGTH] = {0};
 
-				if (NULL == ((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->ProcessName)
+				if (0 == strlen(((PPOC_MESSAGE_PROCESS_RULES)(Buffer + sizeof(POC_MESSAGE_HEADER)))->ProcessName))
 				{
 					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ProcessName is null.\n", __FUNCTION__));
 					Status = STATUS_INVALID_PARAMETER;
@@ -230,11 +259,11 @@ NTSTATUS PocMessageNotifyCallback(
 					goto EXIT;
 				}
 
-				Status = PocSymbolLinkPathToDosPath(ProcessName, DosProcessName);
+				Status = PocAnyPath2DosPath(ProcessName, DosProcessName, sizeof(DosProcessName));
 
 				if (STATUS_SUCCESS != Status)
 				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSymbolLinkPathToDosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnyPath2DosPath failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
 
@@ -261,13 +290,25 @@ NTSTATUS PocMessageNotifyCallback(
 													ProcessRules->ProcessName,
 													ProcessRules->Access));
 
-				Status = STATUS_SUCCESS;
+				Status = MessageHeader.Command;
 
 				break;
 			}
 			case POC_ADD_SECURE_FODER:
 			{
+				/*
+				* 添加机密文件夹
+				*/
+
+				if (0 == strlen(((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder))
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Extension is null.\n", __FUNCTION__));
+					Status = STATUS_INVALID_PARAMETER;
+					goto EXIT;
+				}
+
 				WCHAR SecureFolder[POC_MAX_NAME_LENGTH] = {0};
+				WCHAR DosSecureFolder[POC_MAX_NAME_LENGTH] = { 0 };
 
 				Status = PocAnsi2Unicode(
 					((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder,
@@ -279,7 +320,20 @@ NTSTATUS PocMessageNotifyCallback(
 					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnsi2Unicode failed. Status = 0x%x.\n", __FUNCTION__, Status));
 					goto EXIT;
 				}
-				Status = PocAddOrFindRelevantPath(SecureFolder, FALSE);
+
+				Status = PocAnyPath2DosPath(
+					SecureFolder, 
+					DosSecureFolder, 
+					sizeof(DosSecureFolder));
+
+				if (Status != STATUS_SUCCESS)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAnyPath2DosPath failed. Status = 0x%x.\n", 
+						__FUNCTION__, Status));
+					goto EXIT;
+				}
+
+				Status = PocAddOrFindRelevantPath(DosSecureFolder, FALSE);
 
 				if (Status != STATUS_SUCCESS)
 				{
@@ -287,10 +341,26 @@ NTSTATUS PocMessageNotifyCallback(
 					goto EXIT;
 				}
 
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add secure folder success. Folder = %ws.\n", __FUNCTION__,
+					SecureFolder));
+
+				Status = MessageHeader.Command;
+
 				break;
 			}
 			case POC_ADD_SECURE_EXTENSION:
 			{
+				/*
+				* 添加需管控的文件扩展名
+				*/
+
+				if (0 == strlen(((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension))
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Extension is null.\n", __FUNCTION__));
+					Status = STATUS_INVALID_PARAMETER;
+					goto EXIT;
+				}
+
 				Status = PocAddSecureExtension(
 					((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension);
 
@@ -300,21 +370,277 @@ NTSTATUS PocMessageNotifyCallback(
 					goto EXIT;
 				}
 
+				Status = MessageHeader.Command;
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Add file extension success. Extension = %s.\n", __FUNCTION__,
+					((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension));
+
+				break;
+			}
+			case POC_GET_PROCESS_RULES:
+			{
+				/*
+				* 遍历进程规则，回传到User
+				*/
+				PPOC_PROCESS_RULES ProcessRules = { 0 };
+				PLIST_ENTRY pListEntry = PocProcessRulesListHead.Flink;
+
+				ULONG Index = 0;
+
+				RtlZeroMemory(ReplyBuffer, MESSAGE_SIZE);
+
+				while (pListEntry != &PocProcessRulesListHead)
+				{
+
+					ProcessRules = CONTAINING_RECORD(pListEntry, POC_PROCESS_RULES, ListEntry);
+
+					if (((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length <= MESSAGE_SIZE - sizeof(POC_MESSAGE_HEADER))
+					{
+						Status = RtlUnicodeToMultiByteN(
+							((PPOC_MESSAGE_PROCESS_RULES)(ReplyBuffer + sizeof(POC_MESSAGE_HEADER) +
+								((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length))->ProcessName,
+							POC_MAX_NAME_LENGTH,
+							&Index,
+							ProcessRules->ProcessName,
+							(ULONG)wcslen(ProcessRules->ProcessName) * sizeof(WCHAR));
+
+						if (Status != STATUS_SUCCESS)
+						{
+							PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+								("%s->RtlUnicodeToMultiByteN PR failed. Status = 0x%x.\n", __FUNCTION__, Status));
+							goto EXIT;
+						}
+
+						((PPOC_MESSAGE_PROCESS_RULES)(ReplyBuffer + sizeof(POC_MESSAGE_HEADER) +
+							((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length))->Access = ProcessRules->Access;
+
+						((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length += sizeof(POC_MESSAGE_PROCESS_RULES);
+					}
+					else
+					{
+						Status = POC_GET_PROCESS_RULES;
+						goto EXIT;
+					}
+					
+
+					pListEntry = pListEntry->Flink;
+				}
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Get process rules success. PR Count = %d.\n", __FUNCTION__,
+					((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length / sizeof(POC_MESSAGE_PROCESS_RULES)));
+
+				Status = MessageHeader.Command;
+
+				break;
+			}
+			case POC_GET_FILE_EXTENSION:
+			{
+				/*
+				* 遍历文件扩展名，回传到User
+				*/
+				ULONG Index = 0;
+
+				RtlZeroMemory(ReplyBuffer, MESSAGE_SIZE);
+
+				for (ULONG i = 0; i < secure_extension_count; i++)
+				{
+					Status = RtlUnicodeToMultiByteN(
+						((PPOC_MESSAGE_SECURE_EXTENSION)(ReplyBuffer + sizeof(POC_MESSAGE_HEADER) +
+							((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length))->Extension,
+						POC_EXTENSION_SIZE,
+						&Index,
+						secure_extension[i],
+						(ULONG)wcslen(secure_extension[i]) * sizeof(WCHAR));
+
+					if (Status != STATUS_SUCCESS)
+					{
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+							("%s->RtlUnicodeToMultiByteN Ext failed. Status = 0x%x.\n", __FUNCTION__, Status));
+						goto EXIT;
+					}
+
+					((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length += sizeof(POC_MESSAGE_SECURE_EXTENSION);
+				}
+
+				Status = MessageHeader.Command;
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Get file extension success. Ext Count = %d.\n", __FUNCTION__,
+					((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length / sizeof(POC_MESSAGE_SECURE_EXTENSION)));
+
+				break;
+			}
+			case POC_REMOVE_FILE_EXTENSION:
+			{
+				/*
+				* 移除文件扩展名
+				*/
+				WCHAR wExtension[POC_EXTENSION_SIZE] = { 0 };
+				ULONG Index = 0;
+
+				Status = RtlMultiByteToUnicodeN(
+					wExtension,
+					sizeof(wExtension), 
+					&Index,
+					((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension,
+					(ULONG)strlen(((PPOC_MESSAGE_SECURE_EXTENSION)
+						(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension));
+
+				if (Status != STATUS_SUCCESS)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+						("%s->RtlMultiByteToUnicodeN Ext = %s failed. Status = 0x%x.\n", 
+							__FUNCTION__, 
+							((PPOC_MESSAGE_SECURE_EXTENSION)(Buffer + sizeof(POC_MESSAGE_HEADER)))->Extension, 
+							Status));
+
+					goto EXIT;
+				}
+
+				Status = POC_OBJECT_NOT_FOUND;
+
+				for (ULONG i = 0; i < secure_extension_count; i++)
+				{
+					if (_wcsnicmp(wExtension, secure_extension[i], wcslen(secure_extension[i])) == 0)
+					{
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+							("%s->Remove file extension success. Ext = %ws.\n", 
+							__FUNCTION__,
+							wExtension));
+
+						for (ULONG j = i; j < secure_extension_count; j++)
+						{
+							RtlZeroMemory(
+								secure_extension[j],
+								POC_EXTENSION_SIZE);
+
+							wcsncpy(secure_extension[j], secure_extension[j + 1], wcslen(secure_extension[j + 1]));
+						}
+
+						RtlZeroMemory(
+							secure_extension[secure_extension_count], 
+							POC_EXTENSION_SIZE);
+
+						secure_extension_count--;
+
+						Status = MessageHeader.Command;
+						break;
+					}
+				}
+
+				break;
+			}
+			case POC_GET_SECURE_FOLDER:
+			{
+				/*
+				* 遍历机密文件夹，回传到User
+				*/
+				ULONG Index = 0;
+
+				RtlZeroMemory(ReplyBuffer, MESSAGE_SIZE);
+
+				for (ULONG i = 0; i < current_relevant_path_inx; i++)
+				{
+					Status = RtlUnicodeToMultiByteN(
+						((PPOC_MESSAGE_SECURE_FODER)(ReplyBuffer + sizeof(POC_MESSAGE_HEADER) +
+							((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length))->SecureFolder,
+						POC_MAX_NAME_LENGTH,
+						&Index,
+						RelevantPath[i],
+						(ULONG)wcslen(RelevantPath[i]) * sizeof(WCHAR));
+
+					if (Status != STATUS_SUCCESS)
+					{
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+							("%s->RtlUnicodeToMultiByteN Folder failed. Status = 0x%x.\n", __FUNCTION__, Status));
+						goto EXIT;
+					}
+
+					((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length += sizeof(POC_MESSAGE_SECURE_FODER);
+				}
+
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Get all folders success. Folder count = %d current = %d.\n", __FUNCTION__,
+					((PPOC_MESSAGE_HEADER)ReplyBuffer)->Length / sizeof(POC_MESSAGE_SECURE_FODER), current_relevant_path_inx));
+
+				Status = MessageHeader.Command;
+				break;
+			}
+			case POC_REMOVE_SECURE_FOLDER:
+			{
+				/*
+				* 移除机密文件夹
+				*/
+				WCHAR wFolder[POC_MAX_NAME_LENGTH] = { 0 };
+				ULONG Index = 0;
+
+				Status = RtlMultiByteToUnicodeN(
+					wFolder,
+					sizeof(wFolder),
+					&Index,
+					((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder,
+					(ULONG)strlen(((PPOC_MESSAGE_SECURE_FODER)
+						(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder));
+
+				if (Status != STATUS_SUCCESS)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+						("%s->RtlMultiByteToUnicodeN Folder = %s failed. Status = 0x%x.\n",
+							__FUNCTION__,
+							((PPOC_MESSAGE_SECURE_FODER)(Buffer + sizeof(POC_MESSAGE_HEADER)))->SecureFolder,
+							Status));
+
+					goto EXIT;
+				}
+
+				Status = POC_OBJECT_NOT_FOUND;
+
+				for (ULONG i = 0; i < current_relevant_path_inx; i++)
+				{
+					if (_wcsnicmp(wFolder, RelevantPath[i], wcslen(RelevantPath[i])) == 0)
+					{
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+							("%s->Remove secure folder success. Ext = %ws.\n",
+								__FUNCTION__,
+								wFolder));
+
+						for (ULONG j = i; j < current_relevant_path_inx; j++)
+						{
+							RtlZeroMemory(
+								RelevantPath[j],
+								POC_MAX_NAME_LENGTH);
+
+							wcsncpy(RelevantPath[j], RelevantPath[j + 1], wcslen(RelevantPath[j + 1]));
+						}
+
+						RtlZeroMemory(
+							RelevantPath[current_relevant_path_inx],
+							POC_MAX_NAME_LENGTH);
+
+						current_relevant_path_inx--;
+
+						Status = MessageHeader.Command;
+						break;
+					}
+				}
+
 				break;
 			}
 			default:
 			{
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->error command =  0x%x.\n", __FUNCTION__, MessageHeader.Command));
+				Status = MessageHeader.Command;
 				break;
 			}
 			}
 		}
 		except(EXCEPTION_EXECUTE_HANDLER)
 		{
+			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Except 0x%x.\n", __FUNCTION__, GetExceptionCode()));
 			return GetExceptionCode();
 		}
 	}
 
 EXIT:
+
 	if (NULL != uDosName.Buffer)
 	{
 		ExFreePool(uDosName.Buffer);
@@ -325,10 +651,10 @@ EXIT:
 	{
 		Status = 1;
 	}
-	MessageHeader.Command = Status;
-	MessageHeader.Length = 0;
 
-	Status = FltSendMessage(gFilterHandle, &gClientPort, &MessageHeader, sizeof(MessageHeader), NULL, NULL, NULL);
+	((PPOC_MESSAGE_HEADER)ReplyBuffer)->Command = Status;
+
+	Status = FltSendMessage(gFilterHandle, &gClientPort, ReplyBuffer, MESSAGE_SIZE, NULL, NULL, NULL);
 
 	if (STATUS_SUCCESS != Status)
 	{

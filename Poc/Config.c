@@ -1,9 +1,14 @@
 #include <fltKernel.h>
 
-#define MAX_SECURE_EXTENSION_COUNT  256
+#define POC_MAX_NAME_LENGTH				320
+#define MAX_SECURE_EXTENSION_COUNT		256
+#define POC_EXTENSION_SIZE			    32
 
-WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][32];
+WCHAR secure_extension[MAX_SECURE_EXTENSION_COUNT][POC_EXTENSION_SIZE];
 size_t secure_extension_count = 0;
+
+WCHAR RelevantPath[256][POC_MAX_NAME_LENGTH] = { 0 };
+ULONG current_relevant_path_inx = 0;
 
 /*
 * 在比较时，采用的是大小写无关的比较方式
@@ -17,8 +22,8 @@ PWCHAR allowed_extension[MAX_SECURE_EXTENSION_COUNT] = {
 		L"pptx",
 		L"ppt",
 		L"txt",
-		/*L"png",
-		L"jpg",*/
+		L"png",
+		L"jpg",
 		L"mp4",
 		L"dwg",
 		L"iso",
@@ -38,12 +43,12 @@ const PWCHAR allowed_path[] = {
 */
 const PWCHAR secure_process[] = {
 	/*
-	* 系统服务
-	* PocUser.exe必须是授权进程，explorer.exe对于.doc文件是必须的
+	* PocUserPanel必须是授权进程，默认安装路径
+	* 
+	* explorer必须是授权进程，否则复制粘贴文件会失败
 	*/
+	L"C:\\Program Files\\hkx3upper\\PocUserPanel.exe",
 	L"C:\\Windows\\explorer.exe",
-	L"C:\\Desktop\\PocUser.exe",
-
 	
 	/*
 	* 用户程序
@@ -57,6 +62,9 @@ const PWCHAR secure_process[] = {
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11744\\office6\\wps.exe",
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11744\\office6\\wpp.exe",
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11744\\office6\\et.exe",
+	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11805\\office6\\wps.exe",
+	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11805\\office6\\wpp.exe",
+	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11805\\office6\\et.exe",
 
 	L"C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.exe",
 	L"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.exe",

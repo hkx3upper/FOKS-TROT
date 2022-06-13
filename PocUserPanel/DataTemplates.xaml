@@ -1,0 +1,39 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:viewmodel="clr-namespace:ModernDashboard.ViewModel"
+                    xmlns:view="clr-namespace:ModernDashboard.View">
+        
+    <!--Data Templates apply Views to ViewModel objects displayed in the UI-->
+    
+    <!--Startup Page-->
+
+    <DataTemplate DataType="{x:Type viewmodel:StartupViewModel}">
+        <view:StartupView/>
+    </DataTemplate>
+    
+    
+    <!--Desktop Page-->
+
+    <DataTemplate DataType="{x:Type viewmodel:DesktopViewModel}">
+        <view:DesktopView/>
+    </DataTemplate>
+    
+    <!--Document Page-->
+
+    <DataTemplate DataType="{x:Type viewmodel:DocumentViewModel}">
+        <view:DocumentView/>
+    </DataTemplate>
+
+    <!--Download Page-->
+
+    <DataTemplate DataType="{x:Type viewmodel:DownloadViewModel}">
+        <view:DownloadView/>
+    </DataTemplate>
+    
+    <!--Picture Page-->
+
+    <DataTemplate DataType="{x:Type viewmodel:PictureViewModel}">
+        <view:PictureView/>
+    </DataTemplate>
+
+</ResourceDictionary>

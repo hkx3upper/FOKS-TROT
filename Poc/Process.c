@@ -197,9 +197,10 @@ NTSTATUS PocProcessRulesListInit()
 	for(const PWCHAR *p = secure_process; *p; p++)
 	{
 		Status = PocAddProcessRuleNode(*p, POC_PR_ACCESS_READWRITE);
+
 		if (Status != STATUS_SUCCESS)
 		{
-			goto EXIT;
+			continue;
 		}
 	}
 

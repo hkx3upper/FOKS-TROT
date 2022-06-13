@@ -5,6 +5,7 @@
 #include "global.h"
 #include "utils.h"
 #include "write.h"
+#include "cipher.h"
 
 POC_ENCRYPTION_TAILER EncryptionTailer = { 0 };
 
@@ -295,13 +296,9 @@ NTSTATUS PocCreateFileForEncTailer(
 
         /*
         * 驱动加载后，文件如果有缓冲或者被内存映射读写过，清一下缓冲，防止出现密文
-        * 但对于非授权进程不需要，因为它不使用该缓冲
-        * IsCipherText == 0，说明是在驱动加载以后，第一次被打开
+        * 只要驱动加载之前有缓冲，都要清掉。
         */
-        Status = PocIsUnauthorizedProcess(ProcessName);
-
-        if (0 == StreamContext->IsCipherText &&
-            POC_IS_AUTHORIZED_PROCESS == Status)
+        if (0 == StreamContext->IsCipherText)
         {
             if (FltObjects->FileObject->SectionObjectPointer->DataSectionObject != NULL)
             {
@@ -342,6 +339,23 @@ NTSTATUS PocCreateFileForEncTailer(
     else if(strncmp(((PPOC_ENCRYPTION_TAILER)OutReadBuffer)->Flag, EncryptionTailer.Flag,
         strlen(EncryptionTailer.Flag)) == 0)
     {
+        if (0 == StreamContext->IsCipherText)
+        {
+            if (FltObjects->FileObject->SectionObjectPointer->DataSectionObject != NULL)
+            {
+                Status = PocNtfsFlushAndPurgeCache(FltObjects->Instance, FltObjects->FileObject);
+
+                if (STATUS_SUCCESS != Status)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->PocNtfsFlushAndPurgeCache failed. Status = 0x%x.\n", Status));
+                }
+                else
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocCreateFileForEncTailer->File has been opened. Flush and purge cache.\n"));
+                }
+            }
+        }
+
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
         if (0 == StreamContext->FileSize)
@@ -785,10 +799,14 @@ NTSTATUS PocReentryToEncrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         if (STATUS_NOT_FOUND == Status)
         {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Irrelevent file extension\n", __FUNCTION__));
             Status = POC_IRRELEVENT_FILE_EXTENSION;
+        }
+        else
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         }
         goto EXIT;
     }
@@ -797,6 +815,14 @@ NTSTATUS PocReentryToEncrypt(
     {
         Status = POC_FILE_IS_CIPHERTEXT;
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws is ciphertext. Encrypt failed.\n", __FUNCTION__, FileName));
+        goto EXIT;
+    }
+
+    if(POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
+    {
+        Status = STATUS_SUCCESS;
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+            ("%s->%ws being rename to encrypt. Encrypt success.\n", __FUNCTION__, FileName));
         goto EXIT;
     }
 
@@ -941,6 +967,8 @@ NTSTATUS PocReentryToEncrypt(
         goto EXIT;
     }
 
+    PocUpdateFlagInStreamContext(StreamContext, 0);
+
     Status = ObReferenceObjectByHandle(
         hFile, 
         STANDARD_RIGHTS_ALL, 
@@ -958,16 +986,25 @@ NTSTATUS PocReentryToEncrypt(
 
     ByteOffset.QuadPart = 0;
 
-    Status = PocWriteFileIntoCache(
-        Instance,
-        FileObject,
-        ByteOffset,
-        ReadBuffer,
-        (ULONG)FileSize);
+    /*
+    * 这里不能用FltWriteFileEx，因为它的缓冲写是非重入的，16个字节以内的文件
+    * 我们需要缓冲写操作重入到minifilter中去扩展文件大小。
+    */
+    ZwWriteFile(
+        hFile, 
+        NULL, 
+        NULL, 
+        NULL, 
+        &IoStatusBlock, 
+        ReadBuffer, 
+        (ULONG)FileSize, 
+        &ByteOffset, 
+        NULL);
+
 
     if (STATUS_SUCCESS != Status)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocWriteFileIntoCache failed. Status = 0x%x\n", __FUNCTION__, Status));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ZwWriteFile failed. Status = 0x%x\n", __FUNCTION__, Status));
         goto EXIT;
     }
 
@@ -1042,10 +1079,14 @@ NTSTATUS PocReentryToDecrypt(
 
     if (STATUS_SUCCESS != Status)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         if (STATUS_NOT_FOUND == Status)
         {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Irrelevent file extension\n", __FUNCTION__));
             Status = POC_IRRELEVENT_FILE_EXTENSION;
+        }
+        else
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReentryToGetStreamContext failed. Status = 0x%x\n", __FUNCTION__, Status));
         }
         goto EXIT;
     }
@@ -1246,7 +1287,7 @@ NTSTATUS PocReentryToDecrypt(
 
     StreamContext->IsCipherText = FALSE;
     StreamContext->FileSize = 0;
-    RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+    RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     
@@ -1329,7 +1370,7 @@ VOID PocAppendEncTailerThread(
 
         for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
         {
-            if (NULL != StreamContext->ProcessInfo[i])
+            if (NULL != StreamContext->ProcessId[i])
             {
                 
                 /*
@@ -1344,7 +1385,6 @@ VOID PocAppendEncTailerThread(
 
                 if (STATUS_SUCCESS != Status)
                 {
-                    StreamContext->ProcessInfo[i] = NULL;
                     StreamContext->ProcessId[i] = NULL;
                 }
                 else
