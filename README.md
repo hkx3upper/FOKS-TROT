@@ -56,7 +56,9 @@ Windows Server 2019 DataCenter 1809(17763.379)
 以管理员身份DebugView，设置`Capture->Capture Kernel`显示驱动日志  
 ```
 4.下载安装包  
-[![Download](https://img.shields.io/badge/Download-5.08MB-green.svg "Download")]([https://github.com/hkx3upper](https://github.com/hkx3upper/FOKS-TROT/releases/) "Download") 如果下载安装包，那就不需要手动编译项目了，可以直接跳到第10步  
+  
+[![Download](https://img.shields.io/badge/Download-5.08MB-green.svg "Download")]([https://github.com/hkx3upper](https://github.com/hkx3upper/FOKS-TROT/releases/) "Download")  
+`如果下载安装包，那就不需要手动编译项目了，可以直接跳到第10步`  
 5.安装并导入CNG库  
 ```
 https://www.microsoft.com/en-us/download/details.aspx?id=30688  
