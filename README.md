@@ -55,8 +55,8 @@ Windows Server 2019 DataCenter 1809(17763.379)
 没有Debug Print Filter就新建，在这个键下新建dword值 “default”，十六进制为0xF，然后重启电脑  
 以管理员身份DebugView，设置`Capture->Capture Kernel`显示驱动日志  
 ```
-4.下载安装包 [![Download](https://img.shields.io/badge/Download-5.08MB-green.svg "Download")]([https://github.com/hkx3upper](https://github.com/hkx3upper/FOKS-TROT/releases/) "Download")  
-`如果下载安装包，那就不需要手动编译项目了，可以直接跳到第10步`  
+4.下载安装包  
+[![Download](https://img.shields.io/badge/Download-5.08MB-green.svg "Download")]([https://github.com/hkx3upper](https://github.com/hkx3upper/FOKS-TROT/releases/) "Download") `如果下载安装包，那就不需要手动编译项目了，可以直接跳到第10步`  
 5.安装并导入CNG库  
 ```
 https://www.microsoft.com/en-us/download/details.aspx?id=30688  
@@ -96,8 +96,9 @@ P.S. 文件加密以后，即使关闭驱动（不重启电脑），记事本也
 加密标识尾只有在关机重启并不开驱动的情况下才能看到。  
 ```
 ![bandicam-2022-06-07-14-17-43-706](https://user-images.githubusercontent.com/41336794/172311235-59075006-aa5e-42f1-a6c4-c976785e6f5a.gif)  
+  
 11.使用编译好的或安装包中的PocUserPanel配置各种参数  
-</br><img width="872" height="537" src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
+</br><img width="100" height="100" src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：
