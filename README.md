@@ -6,7 +6,7 @@
 <a href="https://github.com/hkx3upper/FOKS-TROT"><img align="right" width="231" height="117" src="https://user-images.githubusercontent.com/41336794/172169698-65afd346-38c4-4fd6-861b-20940a6ee493.jpg" alt="FOKS-TROT"></a></br>
 # FOKS-TROT  
 ## 基于Minifilter框架的双缓冲透明加解密驱动  
-## It's a minifilter used for transparent-encrypting.  
+## It's a minifilter used for transparent-encrypting. <a href="https://github.com/hkx3upper/FOKS-TROT/wiki/Foxtrot">English</a>  
 
 ## Foreword：
 **Foxtrot**是一个实验性项目，且作者对于文件系统等的理解难免会存在偏差，因此可能会产生误导，望读者辩证的学习，并且请读者遵循相关的开源协议。且本项目5月12号以前的版本已作为毕设，如有雷同，纯属雷同`((/- -)/）`  
