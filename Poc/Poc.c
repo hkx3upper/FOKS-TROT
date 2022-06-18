@@ -51,17 +51,17 @@ DriverEntry (
     );
 
 NTSTATUS
-PocInstanceSetup (
+PocUnload (
+    _In_ FLT_FILTER_UNLOAD_FLAGS Flags
+    );
+
+NTSTATUS
+PocInstanceSetup(
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _In_ FLT_INSTANCE_SETUP_FLAGS Flags,
     _In_ DEVICE_TYPE VolumeDeviceType,
     _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
-    );
-
-NTSTATUS
-PocUnload (
-    _In_ FLT_FILTER_UNLOAD_FLAGS Flags
-    );
+);
 
 FLT_PREOP_CALLBACK_STATUS
 PocPreCreateOperation(
@@ -349,7 +349,7 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
       0,
       PocPreSetInformationOperation,
       PocPostSetInformationOperation },
-
+          
     { IRP_MJ_CLOSE,
       0,
       PocPreCloseOperation,
@@ -516,43 +516,6 @@ Return Value:
     PocInitDpcRoutine();
 
 
-    //
-    //  Register with FltMgr to tell it our callback routines
-    //
-
-    status = FltRegisterFilter( DriverObject,
-                                &FilterRegistration,
-                                &gFilterHandle );
-
-    FLT_ASSERT( NT_SUCCESS( status ) );
-
-    if (!NT_SUCCESS(status))
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltRegisterFilter failed. Status = 0x%x.\n", __FUNCTION__, status));
-        goto EXIT;
-    }
-
-    //
-    //  Start filtering i/o
-    //
-
-    status = FltStartFiltering( gFilterHandle );
-
-    if (!NT_SUCCESS( status )) 
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltStartFiltering failed. Status = 0x%x.\n", __FUNCTION__, status));
-        goto EXIT;
-    }
-
-
-    status = PocInitCommPort();
-
-    if (STATUS_SUCCESS != status)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocInitCommPort failed. Status = 0x%x.\n", __FUNCTION__, status));
-        goto EXIT;
-    }
-
     status = PocInitProcess();
 
     if (STATUS_SUCCESS != status)
@@ -569,6 +532,14 @@ Return Value:
         goto EXIT;
     }
 
+    status = PocInitFolderAndExt();
+
+    if (STATUS_SUCCESS != status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocInitFolderAndExt failed. Status = 0x%x.\n", __FUNCTION__, status));
+        goto EXIT;
+    }
+
     RtlMoveMemory(EncryptionTailer.Flag, POC_ENCRYPTION_HEADER_FLAG, strlen(POC_ENCRYPTION_HEADER_FLAG));
 
     RtlMoveMemory(
@@ -576,21 +547,59 @@ Return Value:
         POC_ENCRYPTION_HEADER_EA_TYPE, 
         strlen(POC_ENCRYPTION_HEADER_EA_TYPE));
 
+    //
+    //  Register with FltMgr to tell it our callback routines
+    //
+
+    status = FltRegisterFilter(DriverObject,
+        &FilterRegistration,
+        &gFilterHandle);
+
+    FLT_ASSERT(NT_SUCCESS(status));
+
+    if (!NT_SUCCESS(status))
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltRegisterFilter failed. Status = 0x%x.\n", __FUNCTION__, status));
+        goto EXIT;
+    }
+
+    //
+    //  Start filtering i/o
+    //
+
+    status = FltStartFiltering(gFilterHandle);
+
+    if (!NT_SUCCESS(status))
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltStartFiltering failed. Status = 0x%x.\n", __FUNCTION__, status));
+        goto EXIT;
+    }
+
+
+    status = PocInitCommPort();
+
+    if (STATUS_SUCCESS != status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocInitCommPort failed. Status = 0x%x.\n", __FUNCTION__, status));
+        goto EXIT;
+    }
+
+
     return status;
 
 EXIT:
-    
-    PocCloseCommPort();
-
-    PocProcessCleanup();
-
-    PocAesCleanup();
 
     if (NULL != gFilterHandle)
     {
         FltUnregisterFilter(gFilterHandle);
         gFilterHandle = NULL;
     }
+
+    PocCloseCommPort();
+
+    PocProcessCleanup();
+
+    PocAesCleanup();
 
     if (NULL != gDeviceObject)
     {
@@ -700,16 +709,15 @@ PocPreCreateOperation (
 
     NTSTATUS Status;
 
-    WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
+    //WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
 
-    Status = PocGetFileNameOrExtension(Data, FileExtension, FileName);
+    //Status = PocGetFileNameOrExtension(Data, FileExtension, NULL);
 
-    if (STATUS_SUCCESS != Status)
-    {
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto EXIT;
-    }
+    //if (STATUS_SUCCESS != Status)
+    //{
+    //    Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+    //    goto EXIT;
+    //}
 
     /*
     * 过滤掉非目标扩展名文件的Create
@@ -805,6 +813,7 @@ PocPreCloseOperation(
     NTSTATUS Status;
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
+
     BOOLEAN ContextCreated = FALSE;
 
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
@@ -855,24 +864,6 @@ PocPreCloseOperation(
 
     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreCloseOperation->enter ProcessName = %ws File = %ws StreamContext->Flag = 0x%x.\n",
         ProcessName, StreamContext->FileName, StreamContext->Flag));*/
-
-
-    /*
-    * Close意味着CM和MM已经处理完毕，FO的引用清零，
-    * 其实SOP换不换回来无所谓，为了严谨一些，还是换回来吧
-    */
-    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
-    {
-
-        Status = PocChangeSectionObjectPointerSafe(
-            FltObjects->FileObject,
-            StreamContext->OriginSectionObjectPointers);
-
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreCloseOperation->Change SOP success ProcessName = %ws File = %ws.\n", 
-            ProcessName, StreamContext->FileName));
-    }
-
 
 
     *CompletionContext = StreamContext;
@@ -947,17 +938,20 @@ PocPostCreateOperationWhenSafe(
     UNREFERENCED_PARAMETER(CompletionContext);
     UNREFERENCED_PARAMETER(Flags);
 
-    NTSTATUS Status;
+    NTSTATUS Status, ProcessType;
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
 
+    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
+
+    ULONG CreateDisposition = 0;
 
     /*
-    * 创建StreamContext，这也是驱动唯一一个可以创建StreamContext的地方，
+    * 创建StreamContext，这也是驱动唯二可以创建StreamContext的地方之一，
     * 其他地方都是查找
     */
     Status = PocFindOrCreateStreamContext(
@@ -969,8 +963,8 @@ PocPostCreateOperationWhenSafe(
 
     if (STATUS_SUCCESS != Status)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->CtxFindOrCreateStreamContext failed. Status = 0x%x.\n",
-            Status));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->CtxFindOrCreateStreamContext failed. Status = 0x%x.\n",
+            __FUNCTION__, Status));
         Status = FLT_POSTOP_FINISHED_PROCESSING;
         goto EXIT;
     }
@@ -984,20 +978,21 @@ PocPostCreateOperationWhenSafe(
     PocUpdateStreamContextProcessInfo(Data, StreamContext);
 
 
+    Status = PocGetFileNameOrExtension(Data, FileExtension, FileName);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocGetFileNameOrExtension failed. Status = 0x%x ProcessName = %ws\n",
+            __FUNCTION__, Status, ProcessName));
+        Status = FLT_POSTOP_FINISHED_PROCESSING;
+        goto EXIT;
+    }
 
     if (ContextCreated || 0 == wcslen(StreamContext->FileName))
     {
-        Status = PocGetFileNameOrExtension(Data, NULL, FileName);
 
-        if (STATUS_SUCCESS != Status)
-        {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocGetFileNameOrExtension failed. Status = 0x%x ProcessName = %ws\n",
-                Status, ProcessName));
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
-            goto EXIT;
-        }
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->ContextCreated Fcb = %p FileName = %ws ProcessName = %ws.\n",
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ContextCreated Fcb = %p FileName = %ws ProcessName = %ws.\n",
+            __FUNCTION__, 
             FltObjects->FileObject->FsContext,
             FileName,
             ProcessName));
@@ -1005,7 +1000,7 @@ PocPostCreateOperationWhenSafe(
 
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-        RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+        RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
 
         if (wcslen(FileName) < POC_MAX_NAME_LENGTH)
             RtlMoveMemory(StreamContext->FileName, FileName, wcslen(FileName) * sizeof(WCHAR));
@@ -1014,16 +1009,33 @@ PocPostCreateOperationWhenSafe(
 
     }
 
-    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPostCreateOperation->enter ProcessName = %ws FileName = %ws.\n", ProcessName, FileName));
+    /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+        ("\n%s->enter ProcessName = %ws FileName = %ws.\n", __FUNCTION__, ProcessName, FileName));*/
+
+
+    ProcessType = PocIsUnauthorizedProcess(ProcessName);
+
+
+    if (POC_IS_AUTHORIZED_PROCESS == ProcessType &&
+        FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
+            (FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
+        NULL == StreamContext->FlushFileObject)
+    {
+        Status = PocInitFlushFileObject(
+            StreamContext->FileName,
+            FltObjects->Instance,
+            &StreamContext->FlushFileObject);
+    }
 
 
     /*
     * 判断是否有加密标识尾的地方
     * 或者如果加密标识尾内的FileName错了，标记一下，在PostClose会更新
-    * （之所以错误是因为对文件进行了重命名操作）
+    * （之所以错误是因为对文件进行了重命名操作，或者移动了位置）
     */
     if (FALSE == StreamContext->IsCipherText)
     {
+
         Status = PocCreateFileForEncTailer(FltObjects, StreamContext, ProcessName);
 
         if (POC_FILE_HAS_ENCRYPTION_TAILER == Status ||
@@ -1032,27 +1044,90 @@ PocPostCreateOperationWhenSafe(
             PocUpdateFlagInStreamContext(StreamContext, Status);
         }
         else
-        {
+        {   
+            /*
+            * 到这里就说明文件是未加密过的。
+            * 
+            * ppt和xls文件，WPS或Office在打开文件时，即使用户没有写入操作，
+            * 也会自动写入一部分的数据，这会导致文件被部分加密，
+            * 所以这里所有未加密的ppt和xls文件，只要打开有写倾向就设置POC_RENAME_TO_ENCRYPT，
+            * POC_RENAME_TO_ENCRYPT会让Write中不加密数据，直到变为POC_BEING_DIRECT_ENCRYPTING，
+            * 这样文件就不会出现一部分明文，一部分密文的情况了。
+            */
+
+            if (_wcsnicmp(FileExtension, L"ppt",
+                wcslen(FileExtension) > wcslen(L"ppt") ? wcslen(FileExtension) : wcslen(L"ppt")) == 0 ||
+                _wcsnicmp(FileExtension, L"xls", 
+                    wcslen(FileExtension) > wcslen(L"xls") ? wcslen(FileExtension) : wcslen(L"xls")) == 0)
+            {
+                if (POC_IS_AUTHORIZED_PROCESS == ProcessType && 
+                    POC_BEING_DIRECT_ENCRYPTING != StreamContext->Flag &&
+                    FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
+                        (FILE_WRITE_DATA | FILE_APPEND_DATA)))
+                {
+                    PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
+                }
+            }
+
             Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
     }
 
 
+    /*
+    * 如果向机密文件夹内拷贝一个文件，该文件与机密文件夹其中某个已加密且打开过的文件名字相同，
+    * 我们让备份进程指向明文缓冲，让它将新文件写入。
+    */
+    CreateDisposition = (Data->Iopb->Parameters.Create.Options >> 24) & 0x000000ff;
+
+    if (POC_IS_BACKUP_PROCESS == ProcessType &&
+        (FILE_SUPERSEDE == CreateDisposition ||
+            FILE_OVERWRITE == CreateDisposition ||
+            FILE_OVERWRITE_IF == CreateDisposition))
+    {
+        StreamContext->IsCipherText = FALSE;
+        goto EXIT;
+    }
+
+    if (TRUE == StreamContext->IsReEncrypted)
+    {
+        goto EXIT;
+    }
 
     /*
     * 密文缓冲建立，如果已经有了，就直接用
     * 应该以DataSectionObject是否创建为准
     */
-
-    Status = PocIsUnauthorizedProcess(ProcessName);
-
     if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
         (FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
-        POC_IS_UNAUTHORIZED_PROCESS == Status)
+        POC_IS_AUTHORIZED_PROCESS != ProcessType)
     {
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPostCreateOperation->SectionObjectPointers operation enter Process = %ws.\n", ProcessName));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+            ("\n%s->SectionObjectPointers operation enter Process = %ws File = %ws.\n", 
+                __FUNCTION__, ProcessName, FileName));
+
+        /*
+        * 刷一下明文缓冲，保持获取到的密文是最新的
+        */
+        if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
+            (FILE_READ_DATA)))
+        {
+            Status = PocFlushOriginalCache(
+                FltObjects->Instance,
+                StreamContext->FileName);
+
+            if (STATUS_SUCCESS != Status)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFlushOriginalCache failed. Status = 0x%x\n", __FUNCTION__, Status));
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->PocFlushOriginalCache %ws success.\n", __FUNCTION__, StreamContext->FileName));
+            }
+        }
+
 
         if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject)
         {
@@ -1060,7 +1135,8 @@ PocPostCreateOperationWhenSafe(
 
             if (STATUS_SUCCESS != Status)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocInitShadowSectionObjectPointers failed. Status = 0x%x\n", Status));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocInitShadowSectionObjectPointers failed. Status = 0x%x\n", 
+                    __FUNCTION__, Status));
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
@@ -1075,34 +1151,15 @@ PocPostCreateOperationWhenSafe(
 
             if (STATUS_SUCCESS != Status)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocChangeSectionObjectPointerSafe failed.\n"));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocChangeSectionObjectPointerSafe failed.\n", __FUNCTION__));
                 Status = FLT_POSTOP_FINISHED_PROCESSING;
                 goto EXIT;
             }
 
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
-                StreamContext->FileName));
-        }
 
 
-        /*
-        * 刷一下明文缓冲，保持获取到的密文是最新的
-        */
-        if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
-            (FILE_READ_DATA)))
-        {
-            Status = PocFlushOriginalCache(
-                FltObjects->Instance,
-                StreamContext->FileName);
-
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostCreateOperation->PocFlushOriginalCache failed. Status = 0x%x\n", Status));
-            }
-            else
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPostCreateOperation->PocFlushOriginalCache %ws success.\n", StreamContext->FileName));
-            }
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
+                __FUNCTION__, StreamContext->FileName));
         }
 
 
@@ -1120,7 +1177,7 @@ EXIT:
         StreamContext = NULL;
     }
 
-    return Status;
+    return FLT_POSTOP_FINISHED_PROCESSING;
 }
 
 
@@ -1148,22 +1205,19 @@ PocPostCloseOperationWhenSafe(
     /*
     * 由PostClose创建线程去写入文件标识尾或重入加密，解决docx死锁问题
     */
-
     ExAcquireResourceSharedLite(StreamContext->Resource, TRUE);
 
     if ((POC_TO_APPEND_ENCRYPTION_TAILER == StreamContext->Flag ||
         POC_TAILER_WRONG_FILE_NAME == StreamContext->Flag ||
-        POC_RENAME_TO_ENCRYPT == StreamContext->Flag) &&
+        POC_RENAME_TO_ENCRYPT == StreamContext->Flag ||
+        POC_TO_DECRYPT_FILE == StreamContext->Flag) &&
         StreamContext->AppendTailerThreadStart == FALSE)
     {
         ExReleaseResourceLite(StreamContext->Resource);
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-            ("%s->PsCreateSystemThread PocAppendEncTailerThread %ws init success.\n", 
-                __FUNCTION__, 
-                StreamContext->FileName));
-
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+        StreamContext->AppendTailerThreadStart = TRUE;
 
         StreamContext->Volume = FltObjects->Volume;
         StreamContext->Instance = FltObjects->Instance;
@@ -1186,14 +1240,21 @@ PocPostCloseOperationWhenSafe(
                     __FUNCTION__,
                     Status));
 
+            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+            StreamContext->AppendTailerThreadStart = FALSE;
+
+            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+
             goto EXIT;
         }
 
-        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-        StreamContext->AppendTailerThreadStart = TRUE;
-
-        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+            ("%s->PsCreateSystemThread PocAppendEncTailerThread %ws init success. FileSize = %I64d.\n",
+                __FUNCTION__,
+                StreamContext->FileName,
+                StreamContext->FileSize));
 
         if (NULL != ThreadHandle)
         {

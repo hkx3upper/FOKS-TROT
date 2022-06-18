@@ -7,6 +7,9 @@ AES_INIT_VARIABLES AesInitVar;
 
 
 NTSTATUS PocInitAesECBKey()
+/*
+* 加密算法的初始化，AES-128 ECB模式，密钥是rgbAES128Key
+*/
 {
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -65,10 +68,11 @@ NTSTATUS PocInitAesECBKey()
 	goto EXIT;
 
 ERROR:
-	if (NULL != AesInitVar.hAesAlg)
+
+	if (NULL != AesInitVar.hKey)
 	{
-		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
-		AesInitVar.hAesAlg = 0;
+		BCryptDestroyKey(AesInitVar.hKey);
+		AesInitVar.hKey = NULL;
 	}
 
 	if (NULL != AesInitVar.pbKeyObject)
@@ -77,10 +81,10 @@ ERROR:
 		AesInitVar.pbKeyObject = NULL;
 	}
 
-	if (NULL != AesInitVar.hKey)
+	if (NULL != AesInitVar.hAesAlg)
 	{
-		BCryptDestroyKey(AesInitVar.hKey);
-		AesInitVar.hKey = NULL;
+		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
+		AesInitVar.hAesAlg = 0;
 	}
 
 	AesInitVar.Flag = FALSE;
@@ -99,10 +103,10 @@ VOID PocAesCleanup()
 		return;
 	}
 
-	if (NULL != AesInitVar.hAesAlg)
+	if (NULL != AesInitVar.hKey)
 	{
-		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
-		AesInitVar.hAesAlg = NULL;
+		BCryptDestroyKey(AesInitVar.hKey);
+		AesInitVar.hKey = NULL;
 	}
 
 	if (NULL != AesInitVar.pbKeyObject)
@@ -111,10 +115,10 @@ VOID PocAesCleanup()
 		AesInitVar.pbKeyObject = NULL;
 	}
 
-	if (NULL != AesInitVar.hKey)
+	if (NULL != AesInitVar.hAesAlg)
 	{
-		BCryptDestroyKey(AesInitVar.hKey);
-		AesInitVar.hKey = NULL;
+		BCryptCloseAlgorithmProvider(AesInitVar.hAesAlg, 0);
+		AesInitVar.hAesAlg = NULL;
 	}
 
 	AesInitVar.Flag = FALSE;

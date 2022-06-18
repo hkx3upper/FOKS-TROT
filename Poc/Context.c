@@ -54,7 +54,7 @@ Return Value:
     RtlZeroMemory(streamContext, POC_STREAM_CONTEXT_SIZE);
 
 
-    streamContext->FileName = ExAllocatePoolWithTag(NonPagedPool, POC_MAX_NAME_LENGTH, POC_STREAM_CONTEXT_TAG);
+    streamContext->FileName = ExAllocatePoolWithTag(NonPagedPool, POC_MAX_NAME_LENGTH * sizeof(WCHAR), POC_STREAM_CONTEXT_TAG);
 
     if (streamContext->FileName == NULL)
     {
@@ -62,11 +62,11 @@ Return Value:
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlZeroMemory(streamContext->FileName, POC_MAX_NAME_LENGTH);
+    RtlZeroMemory(streamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
 
 
     streamContext->ShadowSectionObjectPointers = ExAllocatePoolWithTag(NonPagedPool,
-        sizeof(SECTION_OBJECT_POINTERS),
+        PAGE_SIZE,
         POC_STREAM_CONTEXT_TAG);
 
     if (streamContext->ShadowSectionObjectPointers == NULL)
@@ -75,7 +75,7 @@ Return Value:
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlZeroMemory(streamContext->ShadowSectionObjectPointers, sizeof(SECTION_OBJECT_POINTERS));
+    RtlZeroMemory(streamContext->ShadowSectionObjectPointers, PAGE_SIZE);
 
 
     streamContext->PageNextToLastForWrite.Buffer= ExAllocatePoolWithTag(NonPagedPool,
@@ -314,6 +314,12 @@ PocContextCleanup(
             streamContext->PageNextToLastForWrite.Buffer = NULL;
         }
 
+        if (NULL != streamContext->FlushFileObject)
+        {
+            ObDereferenceObject(streamContext->FlushFileObject);
+            streamContext->FlushFileObject = NULL;
+        }
+
         if (streamContext->Resource != NULL)
         {
             ExDeleteResourceLite(streamContext->Resource);
@@ -355,7 +361,7 @@ NTSTATUS PocUpdateNameInStreamContext(
 
     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-    RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+    RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
     RtlMoveMemory(StreamContext->FileName, NewFileName, wcslen(NewFileName) * sizeof(WCHAR));
 
     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
@@ -412,7 +418,8 @@ NTSTATUS PocUpdateStreamContextProcessInfo(
         goto EXIT;
     }
 
-    if (_strnicmp((PCHAR)PsGetProcessImageFileName(eProcess), "explorer.exe", strlen("explorer.exe")) == 0)
+    if (_strnicmp((PCHAR)PsGetProcessImageFileName(eProcess), "explorer.exe", strlen("explorer.exe")) == 0 ||
+        _strnicmp((PCHAR)PsGetProcessImageFileName(eProcess), "PocUserPanel.exe", strlen("PocUserPanel.exe")) == 0)
     {
         goto EXIT;
     }
@@ -447,13 +454,13 @@ NTSTATUS PocUpdateStreamContextProcessInfo(
     for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
     {
 
-        if (NULL == StreamContext->ProcessInfo[i] && 0xFF == Free)
+        if (NULL == StreamContext->ProcessId[i] && 0xFF == Free)
         {
             Free = i;
         }
 
         
-        if (OutProcessInfo == StreamContext->ProcessInfo[i])
+        if (ProcessId == StreamContext->ProcessId[i])
         {
             Status = STATUS_SUCCESS;
             goto EXIT;
@@ -463,7 +470,6 @@ NTSTATUS PocUpdateStreamContextProcessInfo(
 
     if (STATUS_SUCCESS != Status)
     {
-        StreamContext->ProcessInfo[Free] = OutProcessInfo;
         StreamContext->ProcessId[Free] = ProcessId;
 
         Status = STATUS_SUCCESS;

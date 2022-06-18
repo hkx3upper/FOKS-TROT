@@ -46,6 +46,11 @@ PocPreReadOperation(
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
     ULONG Index = 0;
 
+    PEPROCESS eProcess = NULL;
+    HANDLE ProcessId = NULL;
+
+    PPOC_CREATED_PROCESS_INFO OutProcessInfo = NULL;
+
     StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.QuadPart;
     ByteCount = Data->Iopb->Parameters.Read.Length;
 
@@ -95,40 +100,199 @@ PocPreReadOperation(
 
     if (!StreamContext->IsCipherText)
     {
-        // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->leave. File is plaintext.\n", __FUNCTION__));
+        /*
+        * 未加密过的文件，不解密。
+        */
+       /* PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->leave. File %ws is plaintext.\n", 
+            __FUNCTION__, StreamContext->FileName));*/
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
-    if (!FLT_IS_IRP_OPERATION(Data))
-    {
-        Status = FLT_PREOP_DISALLOW_FASTIO;
-        goto ERROR;
-    }
 
     Status = PocGetProcessName(Data, ProcessName);
 
-    if (StartingVbo >= StreamContext->FileSize)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws read end of file.\n", __FUNCTION__, ProcessName));
-        Data->IoStatus.Status = STATUS_END_OF_FILE;
-        Data->IoStatus.Information = 0;
 
-        Status = FLT_PREOP_COMPLETE;
-        goto ERROR;
+    /* 
+    * 明文缓冲是不带文件标识尾的，密文缓冲是带文件标识尾的，
+    * 授权进程读文件明文长度，非授权进程也读明文长度，备份权限的进程读完整的文件长度。
+    */
+    if (!NonCachedIo)
+    {
+        /*
+        * 缓冲读请求，对于授权进程和非授权进程，都要读取文件的明文长度StreamContext->FileSize，
+        * 备份进程要读到全部文件长度Fcb->FileSize。
+        * 
+        *    StreamContext->FileSize             SectorSize                          Fcb->FileSize               Fcb->Allocation
+        *              |
+        *           |123.......|.....................|....Tailer...........................|...........................|
+        *           0         0x10                 0x200                                 0x1200                      0x1600
+        *                      |
+        *                AES_BLOCK_SIZE
+        * 
+        * 明文缓冲的数据有效长度是到SectorSize，密文缓冲是到Fcb->Allocation，正常情况下，缓冲内数据的大小是Fcb->Allocation。
+        * 
+        * Fcb->FileSize的作用和我们minifilter的StreamContext->FileSize的作用是一样的，只不过，
+        * Fcb->FileSize是文件系统驱动向上层指定的文件结尾，StreamContext->FileSize是minifilter向上层指定的文件结尾。
+        */
+
+
+        /*
+        * 只有在CachedIo时，判断操作的进程才有意义，因为NonCachedIo时，不一定是原本的进程写入数据。
+        */
+        try
+        {
+            eProcess = FltGetRequestorProcess(Data);
+
+            if (NULL == eProcess)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EProcess FltGetRequestorProcess failed.\n", __FUNCTION__));
+                leave;
+            }
+
+            ProcessId = PsGetProcessId(eProcess);
+
+            if (NULL == ProcessId)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->PsGetProcessId %p failed.\n",
+                        __FUNCTION__, eProcess));
+                leave;
+            }
+
+            Status = PocFindProcessInfoNodeByPidEx(
+                ProcessId,
+                &OutProcessInfo,
+                FALSE,
+                FALSE);
+
+        }
+        except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Except 0x%x.\n", __FUNCTION__, GetExceptionCode()));
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+            Status = FLT_PREOP_COMPLETE;
+            goto ERROR;
+        }
+
+
+        if (TRUE == StreamContext->IsDirty &&
+            NULL != OutProcessInfo &&
+            POC_PR_ACCESS_BACKUP == OutProcessInfo->OwnedProcessRule->Access)
+        {
+            /*
+            * 防止备份进程读到没写入标识尾的密文等无法解密的数据
+            */
+            Data->IoStatus.Status = STATUS_SHARING_VIOLATION;
+            Data->IoStatus.Information = 0;
+
+            Status = FLT_PREOP_COMPLETE;
+            goto ERROR;
+        }
+
+        if (StartingVbo >= StreamContext->FileSize)
+        {
+            if (NULL != OutProcessInfo &&
+                POC_PR_ACCESS_BACKUP == OutProcessInfo->OwnedProcessRule->Access)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->Backup process %ws read the tailer of file %ws. StartingVbo = %I64d ByteCount = %I64d FileSize = %I64d\n",
+                        __FUNCTION__,
+                        ProcessName,
+                        StreamContext->FileName,
+                        StartingVbo,
+                        ByteCount,
+                        StreamContext->FileSize));
+
+                Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+                goto ERROR;
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws cachedio startingvbo over end of file %ws. StartingVbo = %I64d FileSize = %I64d\n",
+                    __FUNCTION__, ProcessName,
+                    StreamContext->FileName,
+                    StartingVbo, StreamContext->FileSize));
+
+                Data->IoStatus.Status = STATUS_END_OF_FILE;
+                Data->IoStatus.Information = 0;
+
+                Status = FLT_PREOP_COMPLETE;
+                goto ERROR;
+            }
+            
+        }
+        else if (StartingVbo + ByteCount > StreamContext->FileSize)
+        {
+            if (NULL != OutProcessInfo &&
+                POC_PR_ACCESS_BACKUP == OutProcessInfo->OwnedProcessRule->Access)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->Backup process %ws read end of file %ws. StartingVbo = %I64d ByteCount = %I64d FileSize = %I64d\n",
+                        __FUNCTION__,
+                        ProcessName,
+                        StreamContext->FileName,
+                        StartingVbo,
+                        ByteCount,
+                        StreamContext->FileSize));
+
+                Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+                goto ERROR;
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws cachedio read end of file %ws Length = %d. NewLength = %I64d\n",
+                    __FUNCTION__,
+                    ProcessName,
+                    StreamContext->FileName,
+                    Data->Iopb->Parameters.Read.Length,
+                    StreamContext->FileSize - StartingVbo));
+
+                Data->Iopb->Parameters.Read.Length = (ULONG)(StreamContext->FileSize - StartingVbo);
+                FltSetCallbackDataDirty(Data);
+            }
+        }
+
     }
-
-
-
-    if (!NonCachedIo && StartingVbo + ByteCount > StreamContext->FileSize)
+    else
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws cachedio read end of file Length = %d. NewLength = %I64d\n",
-            __FUNCTION__,
-            ProcessName,
-            Data->Iopb->Parameters.Read.Length,
-            StreamContext->FileSize - StartingVbo));
-        Data->Iopb->Parameters.Read.Length = (ULONG)(StreamContext->FileSize - StartingVbo);
-        FltSetCallbackDataDirty(Data);
+
+        /*
+        * 非缓冲读请求，也就是明文缓冲和密文缓冲内的数据，
+        * 明文缓冲不能有标识尾，首先没有必要，其次还需要在PostRead中不解密标识尾这一块数据，所以直接不读出，
+        * 密文缓冲中有标识尾。
+        */
+        if (StartingVbo >= StreamContext->FileSize &&
+            FltObjects->FileObject->SectionObjectPointer !=
+            StreamContext->ShadowSectionObjectPointers)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws noncachedio read end of file %ws. StartingVbo = %I64d FileSize = %I64d\n",
+                __FUNCTION__, ProcessName,
+                StreamContext->FileName,
+                StartingVbo, StreamContext->FileSize));
+
+            Data->IoStatus.Status = STATUS_END_OF_FILE;
+            Data->IoStatus.Information = 0;
+
+            Status = FLT_PREOP_COMPLETE;
+            goto ERROR;
+        }
+        else if (StartingVbo >= StreamContext->FileSize)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s->Backup process NoncachedIo %ws read the tailer of file %ws. StartingVbo = %I64d Length = %I64d FileSize = %I64d\n",
+                    __FUNCTION__,
+                    ProcessName,
+                    StreamContext->FileName,
+                    StartingVbo,
+                    ByteCount,
+                    StreamContext->FileSize));
+
+            Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+            goto ERROR;
+        }
+
     }
 
 
@@ -150,6 +314,10 @@ PocPreReadOperation(
     if (FltObjects->FileObject->SectionObjectPointer ==
         StreamContext->ShadowSectionObjectPointers)
     {
+        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Don't decrypt ciphertext cache map. Process = %ws FileName = %ws.\n", 
+            __FUNCTION__, ProcessName,
+            StreamContext->FileName));*/
+
         SwapBufferContext->StreamContext = StreamContext;
         *CompletionContext = SwapBufferContext;
         Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
@@ -299,10 +467,17 @@ PocPostReadOperation(
 
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
 
-    // 隐藏文件标识尾
+    /*
+    * 到这里的情况是：明文缓冲中NonCachedIo读出的密文，因为使用的是密文挪用，
+    * 所以需要将Data->IoStatus.Information设置为原始的数据长度。
+    * CachedIo已经在PreRead中将Read.Length修改了，但NonCachedIo要求Length和扇区对齐，
+    * 所以，只能在PostRead中修改一下。
+    */
     if (STATUS_SUCCESS == Data->IoStatus.Status)
     {
-        if (StartingVbo + (LONGLONG)Data->IoStatus.Information > FileSize)
+        if (StartingVbo + (LONGLONG)Data->IoStatus.Information > FileSize &&
+            FltObjects->FileObject->SectionObjectPointer ==
+            StreamContext->OriginSectionObjectPointers)
         {
             Data->IoStatus.Information = FileSize - StartingVbo;
         }
@@ -318,7 +493,9 @@ PocPostReadOperation(
     if (FltObjects->FileObject->SectionObjectPointer ==
         StreamContext->ShadowSectionObjectPointers)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Don't decrypt ciphertext cache map.\n", __FUNCTION__));
+        /*
+        * 密文缓冲不解密
+        */
         Status = FLT_POSTOP_FINISHED_PROCESSING;
         goto EXIT;
     }

@@ -6,18 +6,12 @@
 #include "filefuncs.h"
 #include "process.h"
 
-
 FLT_PREOP_CALLBACK_STATUS
 PocPreWriteOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
     _Flt_CompletionContext_Outptr_ PVOID* CompletionContext
 )
-/*
-* 如果想在Write->NonCachedIo中Y用FltWriteFile写入文件标识尾，会有死锁
-* 原因是NtfsCommonWrite尝试独占一个ERESOURCE，KeWaitForSingleObject阻塞了
-* 但这个ERESOURCE并不是Fcb->Header的两个读写锁
-*/
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(FltObjects);
@@ -100,27 +94,47 @@ PocPreWriteOperation(
 
 
     //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
-    //    ("\nPocPreWriteOperation->enter StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
+    //    ("\nPocPreWriteOperation->enter StartingVbo = %I64d Length = %d FileSize = %I64d ProcessName = %ws File = %ws.\n NonCachedIo = %d PagingIo = %d\n",
     //    Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
     //    Data->Iopb->Parameters.Write.Length,
+    //    FileSize,
     //    ProcessName, StreamContext->FileName,
     //    NonCachedIo,
     //    PagingIo));
 
-    if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag)
+    if (POC_RENAME_TO_ENCRYPT == StreamContext->Flag && NonCachedIo)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->leave PostClose will encrypt the file. StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.QuadPart, ProcessName, StreamContext->FileName));
+        /*
+        * 未加密的doc,docx,ppt,pptx,xls,xlsx文件，进程直接写入这类文件时不会自动加密，
+        * 而是会在该进程关闭以后，我们去判断是否应该加密该类文件。
+        */
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+            ("%s->Leave PostClose will encrypt the file. StartingVbo = %I64d Length = %I64d ProcessName = %ws File = %ws.\n",
+                __FUNCTION__,
+                Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
+                ByteCount,
+                ProcessName, 
+                StreamContext->FileName));
+
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
         goto ERROR;
     }
 
 
-    if (FltObjects->FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers
-        && NonCachedIo)
+    if (FltObjects->FileObject->SectionObjectPointer == 
+        StreamContext->ShadowSectionObjectPointers)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Block StartingVbo = %I64d ProcessName = %ws File = %ws.\n",
-            Data->Iopb->Parameters.Write.ByteOffset.QuadPart, ProcessName, StreamContext->FileName));
+        /*
+        * 不允许写入密文缓冲，尤其是NonCachedIo，会有死锁
+        */
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+            ("%s->Block NonCachedIo = %d chipertext cachemap StartingVbo = %I64d Length = %I64d ProcessName = %ws File = %ws.",
+                __FUNCTION__,
+                NonCachedIo ? 1 : 0,
+                Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
+                ByteCount,
+                ProcessName,
+                StreamContext->FileName));
 
         Data->IoStatus.Status = STATUS_SUCCESS;
         Data->IoStatus.Information = Data->Iopb->Parameters.Write.Length;
@@ -146,40 +160,67 @@ PocPreWriteOperation(
 
     if (!NonCachedIo)
     {
+        /*
+        * 16个字节以内扩展文件大小，还有一处在PreSetInfo，按道理应该是if (!PagingIo)，但
+        * NonCachedIo要求Length > SectorSize，所以if (!NonCachedIo)就行。
+        */
+
         if (FileSize < AES_BLOCK_SIZE)
         {
-
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-            StreamContext->FileSize = Data->Iopb->Parameters.Write.Length;
-            
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-
-            Status = PocSetEndOfFileInfo(
-                FltObjects->Instance, 
-                FltObjects->FileObject, 
-                AES_BLOCK_SIZE);
-
-            if (STATUS_SUCCESS != Status)
+            /*
+            * FSD的Write会帮我们扩展文件大小，可以在FastFat的Write中搜索ExtendingFile
+            */
+            if (StartingVbo + Data->Iopb->Parameters.Write.Length < AES_BLOCK_SIZE)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocSetEndOfFileInfo failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_PREOP_COMPLETE;
-                goto ERROR;
+                SwapBufferContext->OriginalLength = Data->Iopb->Parameters.Write.Length;
+
+                ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+                StreamContext->FileSize = StartingVbo + Data->Iopb->Parameters.Write.Length;
+                StreamContext->LessThanAesBlockSize = TRUE;
+
+                ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+                Data->Iopb->Parameters.Write.Length = AES_BLOCK_SIZE - (ULONG)StartingVbo;
+
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->ExtendingFile success. Filesize = %I64d StartingVbo = %I64d OriginWriteLength = %d NewLength = %d.\n",
+                        __FUNCTION__,
+                        FileSize,
+                        StartingVbo,
+                        StreamContext->FileSize,
+                        Data->Iopb->Parameters.Write.Length));
+
+                FltSetCallbackDataDirty(Data);
+
             }
         }
-
     }
-    else if (NonCachedIo)
-    {
 
+
+    if (!PagingIo)
+    {
+        /*
+        * 需要在PostWrite修改密文缓冲的大小
+        */
+        if (StartingVbo + ByteCount > FileSize)
+        {
+            SwapBufferContext->IsCacheExtend = TRUE;
+        }
+    }
+
+
+    if (NonCachedIo)
+    {
         Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, &VolumeContext);
 
         if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
         {
             PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPostReadOperation->FltGetVolumeContext failed. Status = 0x%x\n", Status));
-            goto EXIT;
+            Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+            Data->IoStatus.Information = 0;
+            Status = FLT_PREOP_COMPLETE;
+            goto ERROR;
         }
 
         SectorSize = VolumeContext->SectorSize;
@@ -189,7 +230,6 @@ PocPreWriteOperation(
             FltReleaseContext(VolumeContext);
             VolumeContext = NULL;
         }
-
 
 
         //LengthReturned是本次Write真正需要写的数据
@@ -224,12 +264,53 @@ PocPreWriteOperation(
             }
 
         }
-        else 
+        else
         {
             OrigBuffer = Data->Iopb->Parameters.Write.WriteBuffer;
         }
 
+
+
+
+
+        if (FALSE == StreamContext->IsCipherText &&
+            FileSize % SectorSize == 0 &&
+            FileSize > PAGE_SIZE &&
+            NonCachedIo)
+        {
+            /*
+            * 表明文件被重复加密了
+            */
+            if (StartingVbo <= FileSize - PAGE_SIZE &&
+                StartingVbo + ByteCount >= FileSize - PAGE_SIZE + SectorSize)
+            {
+                if (strncmp(
+                    ((PPOC_ENCRYPTION_TAILER)(OrigBuffer + FileSize - PAGE_SIZE - StartingVbo))->Flag, 
+                    EncryptionTailer.Flag,
+                    strlen(EncryptionTailer.Flag)) == 0)
+                {
+
+                    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+                    StreamContext->IsReEncrypted = TRUE;
+
+                    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                        ("%s->File has been repeatedly encrypted. StartingVbo = %I64d Length = %I64d ProcessName = %ws File = %ws.",
+                            __FUNCTION__,
+                            Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
+                            ByteCount,
+                            ProcessName,
+                            StreamContext->FileName));
+
+                }
+            }
+        }
+
+
         
+
 
         if (FileSize > AES_BLOCK_SIZE &&
             LengthReturned < AES_BLOCK_SIZE)
@@ -460,18 +541,6 @@ PocPreWriteOperation(
         FltSetCallbackDataDirty(Data);
 
 
-        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-        StreamContext->IsCipherText = TRUE;
-
-        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-
-        if (StartingVbo + ByteCount >= FileSize && NonCachedIo)
-        {
-            PocUpdateFlagInStreamContext(StreamContext, POC_TO_APPEND_ENCRYPTION_TAILER);
-        }
-
-
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->Encrypt success. StartingVbo = %I64d Length = %d ProcessName = %ws File = %ws.\n\n",
             Data->Iopb->Parameters.Write.ByteOffset.QuadPart,
             (ULONG)LengthReturned,
@@ -539,7 +608,6 @@ PocPostWriteOperation(
     ASSERT(CompletionContext != NULL);
     ASSERT(((PPOC_SWAP_BUFFER_CONTEXT)CompletionContext)->StreamContext != NULL);
 
-
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
     PPOC_STREAM_CONTEXT StreamContext = NULL;
 
@@ -547,20 +615,99 @@ PocPostWriteOperation(
     StreamContext = SwapBufferContext->StreamContext;
 
 
-    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) && 
-        StreamContext->FileSize >= AES_BLOCK_SIZE ||
-        0 == StreamContext->FileSize)
+    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE))
     {
-        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+        /*
+        * 文件被修改过，且还未写入文件标识尾，阻止备份进程读文件
+        */
+        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+        StreamContext->IsDirty = TRUE;
+
+        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     }
-    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+
+    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) &&
+        TRUE != StreamContext->LessThanAesBlockSize)
+    {
+        /*
+        * 记录文件的明文大小，小于16个字节的StreamContext->FileSize已经在其他处更新过了，
+        * 这里不能再更新了，因为这里的FileSize已经是16个字节了。
+        */
+        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+
+        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+    }
+
+
+    /*
+    * 扩展密文缓冲的大小，在PostWrite是因为，我们需要它进入文件系统驱动的Write去扩展AllocationSize等值，
+    * 等这些值扩展以后，我们才能增大密文缓冲的大小。
+    */
+    if (TRUE == SwapBufferContext->IsCacheExtend && 
+        NULL != StreamContext->ShadowSectionObjectPointers &&
+        NULL != StreamContext->ShadowSectionObjectPointers->SharedCacheMap &&
+        NULL != StreamContext->ShadowFileObject)
+    {
+        ExAcquireResourceExclusiveLite(((PFSRTL_ADVANCED_FCB_HEADER)(FltObjects->FileObject->FsContext))->Resource, TRUE);
+
+        CcSetFileSizes(StreamContext->ShadowFileObject, 
+            (PCC_FILE_SIZES) & ((PFSRTL_ADVANCED_FCB_HEADER)(FltObjects->FileObject->FsContext))->AllocationSize);
+
+        ExReleaseResourceLite(((PFSRTL_ADVANCED_FCB_HEADER)(FltObjects->FileObject->FsContext))->Resource);
+    }
+
 
     if (0 != SwapBufferContext->OriginalLength)
     {
+        /*
+        * 写入长度被修改过，将它还原
+        */
         Data->IoStatus.Information = SwapBufferContext->OriginalLength;
     }
+
+
+    if (Data->Iopb->Parameters.Write.ByteOffset.QuadPart +
+        Data->Iopb->Parameters.Write.Length >=
+        ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart
+        && BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE))
+    {
+        if (TRUE == StreamContext->IsReEncrypted)
+        {
+            /*
+            * 文件被重复加密了，我们在PostClose将它解密一次
+            */
+            PocUpdateFlagInStreamContext(StreamContext, POC_TO_DECRYPT_FILE);
+        }
+        else
+        {
+            /*
+            * 文件被加密，我们在PostClose给它写入文件标识尾
+            */
+            PocUpdateFlagInStreamContext(StreamContext, POC_TO_APPEND_ENCRYPTION_TAILER);
+        }
+
+        /*
+        * 表明文件已被加密，这样Read才会解密
+        */
+        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+        StreamContext->IsCipherText = TRUE;
+
+        StreamContext->LessThanAesBlockSize = FALSE;
+
+        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+        if (NULL != StreamContext->FlushFileObject)
+        {
+            ObDereferenceObject(StreamContext->FlushFileObject);
+            StreamContext->FlushFileObject = NULL;
+        }
+    }
+
 
     if (NULL != SwapBufferContext->NewBuffer)
     {
@@ -579,7 +726,6 @@ PocPostWriteOperation(
         FltReleaseContext(StreamContext);
         StreamContext = NULL;
     }
-
 
     return FLT_POSTOP_FINISHED_PROCESSING;
 }

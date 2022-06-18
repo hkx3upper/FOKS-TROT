@@ -8,6 +8,12 @@
 NTSTATUS PocInitShadowSectionObjectPointers(
 	IN PCFLT_RELATED_OBJECTS FltObjects, 
 	IN OUT PPOC_STREAM_CONTEXT StreamContext)
+/*
+* 为ShadowSectionObjectPointer分配的内存要远大于sizeof(SectionObjectPointer)，
+* 因为ntfs驱动有时会用(SectionObjectPointer+40)这种方式去取内存，
+* 本来它指向的是Scb->NonpagedScb->SegmentObject后面的某个结构体，
+* 但我们的ShadowSectionObjectPointer是独立出来的内存，所以要分配一个PAGE_SIZE大小的内存，这样肯定够用
+*/
 {
 
 	if (NULL == StreamContext)
@@ -35,6 +41,7 @@ NTSTATUS PocInitShadowSectionObjectPointers(
 	ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
 	StreamContext->OriginSectionObjectPointers = FileObject->SectionObjectPointer;
+	StreamContext->ShadowFileObject = FileObject;
 
 	ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -58,7 +65,13 @@ NTSTATUS PocInitShadowSectionObjectPointers(
 
 
 	Status = STATUS_SUCCESS;
-	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitShadowSectionObjectPointers->Init %ws ciphertext cache map success.\n", StreamContext->FileName));
+
+	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+		("PocInitShadowSectionObjectPointers->Init %ws ciphertext cache map success.\nAllocationSize = %I64d ValidDataLength = %I64d FileSize = %I64d\n", 
+			StreamContext->FileName,
+			((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->AllocationSize.QuadPart,
+			((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->ValidDataLength.QuadPart,
+			((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->FileSize.QuadPart));
 
 EXIT:
 
@@ -97,7 +110,7 @@ NTSTATUS PocCleanupSectionObjectPointers(
 				ExFreePoolWithTag(StreamContext->ShadowSectionObjectPointers, POC_STREAM_CONTEXT_TAG);
 				StreamContext->ShadowSectionObjectPointers = NULL;
 
-				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws ExFreePoolWithTag1 SectionObjectPointers success.\n",
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws ExFreePoolWithTag1 ShadowSectionObjectPointers success.\n",
 					__FUNCTION__,
 					StreamContext->FileName));
 			}

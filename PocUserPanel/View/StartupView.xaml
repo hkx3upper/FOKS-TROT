@@ -1,0 +1,19 @@
+﻿<UserControl x:Class="ModernDashboard.View.StartupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ModernDashboard.View"
+             mc:Ignorable="d"
+             d:DesignHeight="500"
+             d:DesignWidth="650">
+
+    <Grid Background="#303030">
+
+        <Image Source="/Assets/channelIcon.png"
+               Stretch="Uniform"  
+               Margin="77,-102,72.6,-98" Height="700" Width="500"/>
+
+    </Grid>
+
+</UserControl>

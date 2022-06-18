@@ -45,7 +45,7 @@ NTSTATUS PocGetVolumeInstance(
 	OUT PFLT_INSTANCE* Instance);
 
 /**
- * @brief 把文件的\\??\\C的路径转换为\\device\\harddiskvolume1的DOS格式的路径
+ * @brief 把文件的\\??\\C:的路径转换为\\device\\harddiskvolume1的DOS格式的路径
  * @param [in] SymbolicLinkName 要转换的路径，不能为空
  * @param [out] LinkTarget 转换后的DOS格式的路径，转换后的路径会把'/'全部替换成'\\'，LinkTarget->Buffer会在函数内部分配内存，需要调用者自己释放。
  * UNICODE_STRING的结构体本身的内存空间需要调用者分配。
@@ -93,3 +93,5 @@ NTSTATUS PocAnyPath2DosPath(
 
 NTSTATUS PocBypassIrrelevantFileExtension(
 	IN PWCHAR FileExtension);
+
+NTSTATUS PocInitFolderAndExt();

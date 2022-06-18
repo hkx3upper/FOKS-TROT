@@ -1,21 +1,170 @@
-﻿<Window x:Class="PocUserPanel.MainWindow"
+﻿<!--<Summary> ///
+    /// Author : R. Arun Mutharasu ///
+    /// Created : 29-09-2021 ///
+    /// YouTube Channel : C# Design Pro ///
+    /// </Summary>-->
+
+<Window x:Class="ModernDashboard.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:PocUserPanel"
+        xmlns:vm="clr-namespace:ModernDashboard.ViewModel"
         mc:Ignorable="d"
-        Title="MainWindow" Height="300" Width="600">
+        Title="MainWindow" 
+        Height="580" 
+        Width="930"
+        x:Name="DashboardWindow"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="Transparent"
+        AllowsTransparency="True"
+        MouseLeftButtonDown="myMouseLeftButtonDown">
+
+    <!--/// <summary>
+        /// View - [ "The Display" ]
+        /// View is the XAML based user interface.The view interacts with 
+        /// the view model through data binding, commands, and change 
+        /// notification events.
+        /// </summary>-->
+
+    <!--Setting the DataContext (Binding Source)-->
+
+    <Window.DataContext>
+        <vm:NavigationViewModel/>
+    </Window.DataContext>
+
     <Grid>
-        <Label Content="进程名:(完整路径)" HorizontalAlignment="Left" Margin="34,90,0,0" VerticalAlignment="Top" FontWeight="Bold"/>
-        <Label Content="权限:(明文,密文)" HorizontalAlignment="Left" Margin="34,116,0,0" VerticalAlignment="Top" FontWeight="Bold"/>
-        <Label Content="配置进程策略" HorizontalAlignment="Center" Margin="0,32,0,0" VerticalAlignment="Top"  FontWeight="Bold"/>
 
-        <TextBox x:Name="ProcessName" HorizontalAlignment="Left" Margin="180,90,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="370"/>
-        <TextBox x:Name="Access" HorizontalAlignment="Left" Margin="180,120,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="370"/>
+        <!--Background Border-->
 
-        <Button x:Name="AddPR" Content="添加进程策略" HorizontalAlignment="Center" Margin="0,166,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.297,0.381" Click="AddPR_Click"/>
-        <Label Content="hkx3upper 2022.03.09" HorizontalAlignment="Center" Margin="0,207,0,0" VerticalAlignment="Top"/>
+        <Border Background="#ECF0F1"
+                CornerRadius="10"/>
+
+        <!--Header-->
+
+        <Border Background="#5C5C5C"
+                VerticalAlignment="Top"
+                HorizontalAlignment="Left"
+                CornerRadius="10,0,100,0"
+                Height="80"
+                Width="850">
+
+            <TextBlock Text="F O K S - T R O T  U S E R P A N E L"
+                       Style="{StaticResource HeaderStyle}"/>
+
+        </Border>
+
+        <!--Footer-->
+
+        <Border Background="#5C5C5C"
+                VerticalAlignment="Bottom"
+                HorizontalAlignment="Right"
+                CornerRadius="100,0,10,0"
+                Height="80"
+                Width="850">
+
+            <TextBlock Text="h k x 3 u p p e r"
+                       Style="{StaticResource FooterStyle}"/>
+
+        </Border>
+
+        <!--Content Background-->
+
+        <Border Background="#303030"
+                BorderBrush="#FFFFFF"
+                BorderThickness="0,5,0,5"
+                Height="480"
+                Margin="0,10,0,0"
+                CornerRadius="25"/>
+
+        <!--Content Grid-->
+
+        <Grid>
+
+            <Grid.ColumnDefinitions>
+
+                <ColumnDefinition Width="25"/>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="40"/>
+                <ColumnDefinition Width="660"/>
+                <ColumnDefinition Width="25"/>
+
+            </Grid.ColumnDefinitions>
+
+            <Grid.RowDefinitions>
+
+                <RowDefinition Height="0"/>
+                <RowDefinition Height="80"/>
+                <RowDefinition Height="55"/>
+                <RowDefinition Height="370"/>
+                <RowDefinition Height="0"/>
+
+            </Grid.RowDefinitions>
+
+            <!--Menu Search Box-->
+
+            <Grid Grid.Row="2"
+                  Grid.Column="1">
+
+                <TextBox x:Name="SearchBox"
+                         Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource SearchBoxStyle}"/>
+
+                <TextBlock Text="Search"
+                           Style="{StaticResource SearchTextStyle}"/>
+
+            </Grid>
+
+            <!--Menu-->
+
+            <Grid Grid.Row="3"
+                  Grid.Column="1"
+                  Margin="0,10,0,0">
+
+                <ItemsControl ItemsSource="{Binding SourceCollection}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <RadioButton Content="{Binding MenuName}"
+                                             Tag="{Binding MenuImage}" 
+                                             CommandParameter="{Binding MenuName}"
+                                             Command="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ItemsControl}}, Path=DataContext.MenuCommand}"
+                                             Style="{StaticResource MenuButtonStyle}"                                                                                                                
+                                             GroupName="MenuGroup"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+            </Grid>
+
+            <!--Page Container-->
+
+            <Grid Grid.Row="2"
+                  Grid.Column="3"
+                  Grid.RowSpan="2"
+                  Background="Transparent">
+
+                <ContentControl x:Name="Pages"
+                                Content="{Binding SelectedViewModel}"/>
+
+            </Grid>
+
+        </Grid>
+
+        <!--Close Button-->
+
+        <Button Height="50"
+                Width="50"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Command="{Binding CloseAppCommand}"
+                CommandParameter="{Binding ElementName=DashboardWindow}"
+                Margin="0,5,20,0"
+                Style="{StaticResource CloseBtn_Style}"/>
 
     </Grid>
+
 </Window>

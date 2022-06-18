@@ -4,6 +4,7 @@
 
 [Version]
 Signature   = "$Windows NT$"
+DriverPackageType	=	FileSystemFilter
 ; TODO - Change the Class and ClassGuid to match the Load Order Group value, see https://msdn.microsoft.com/en-us/windows/hardware/gg462963
 ; Class       = "ActivityMonitor"                         ;This is determined by the work this filter driver does
 ; ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}    ;This value is determined by the Load Order Group value

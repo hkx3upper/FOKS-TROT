@@ -12,7 +12,8 @@
 
 extern "C" _declspec(dllexport) INT PocUserInitCommPort(IN HANDLE * hPort);
 extern "C" _declspec(dllexport) INT PocUserSendMessage(IN HANDLE hPort, IN LPVOID lpInBuffer, IN INT Command);
-extern "C" _declspec(dllexport) INT PocUserGetMessage(IN HANDLE hPort, IN UINT * Command);
+extern "C" _declspec(dllexport) INT PocUserGetMessage(IN HANDLE hPort, IN OUT UINT * Command);
+extern "C" _declspec(dllexport) INT PocUserGetMessageEx(IN HANDLE hPort, IN OUT UINT * Command, IN OUT char* MessageBuffer);
 extern "C" _declspec(dllexport) INT PocUserAddProcessRules(IN HANDLE hPort, IN PCHAR ProcessName, IN UINT Access);
 
 #endif //PCH_H

@@ -33,6 +33,11 @@ PocPreQueryInformationOperation(
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
 
+    PEPROCESS eProcess = NULL;
+    HANDLE ProcessId = NULL;
+
+    PPOC_CREATED_PROCESS_INFO OutProcessInfo = NULL;
+
 
     Status = PocFindOrCreateStreamContext(
         Data->Iopb->TargetInstance,
@@ -82,6 +87,52 @@ PocPreQueryInformationOperation(
         goto EXIT;
     }
 
+    try
+    {
+        eProcess = FltGetRequestorProcess(Data);
+
+        if (NULL == eProcess)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EProcess FltGetRequestorProcess failed.\n", __FUNCTION__));
+            leave;
+        }
+
+        ProcessId = PsGetProcessId(eProcess);
+
+        if (NULL == ProcessId)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s->PsGetProcessId %p failed.\n",
+                    __FUNCTION__, eProcess));
+            leave;
+        }
+
+        Status = PocFindProcessInfoNodeByPidEx(
+            ProcessId,
+            &OutProcessInfo,
+            FALSE,
+            FALSE);
+
+    }
+    except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Except 0x%x.\n", __FUNCTION__, GetExceptionCode()));
+        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto EXIT;
+    }
+
+
+    /*
+    * 备份进程可以看到整个的文件，包括文件标识尾，所以不进入PostQuery去隐藏后续数据。
+    * 
+    * 具体的文件数据结构在PreRead中的注释里有画。
+    */
+    if (NULL != OutProcessInfo &&
+        POC_PR_ACCESS_BACKUP == OutProcessInfo->OwnedProcessRule->Access)
+    {
+        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
+        goto EXIT;
+    }
 
     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreQueryInformationOperation->enter FileInformationClass = %d ProcessName = %ws File = %ws.\n",
         Data->Iopb->Parameters.QueryFileInformation.FileInformationClass,
@@ -126,7 +177,8 @@ PocPostQueryInformationOperation(
     InfoBuffer = Data->Iopb->Parameters.QueryFileInformation.InfoBuffer;
 
     /*
-    * StreamContext->FileSize记录着明文的大小，并写入到了标识尾中
+    * StreamContext->FileSize记录着明文的大小，并写入到了标识尾中，这里是向上层隐藏"明文长度"之后数据的地方之一
+    * 另一个地方在Read中，会对超过明文长度的CachedIo的授权进程和非授权进程隐藏后面的数据。
     */
     switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass) {
 
@@ -229,9 +281,15 @@ PocPreSetInformationOperation(
     }
 
 
+    /*
+    * 如果应用程序想要写入16个字节以内的数据，而且是以内存映射写入的话，是不会到CachedIo Write的，所以它会提前设置EOF，
+    * 我们将它扩展到16个字节，以便AES对齐以后加密的密文能写入磁盘中。
+    * 
+    * 另一个扩展的地方在PreWrite->CachedIo
+    */
     InfoBuffer = Data->Iopb->Parameters.SetFileInformation.InfoBuffer;
 
-    switch (Data->Iopb->Parameters.QueryFileInformation.FileInformationClass)
+    switch (Data->Iopb->Parameters.SetFileInformation.FileInformationClass)
     {
     case FileEndOfFileInformation:
     {
@@ -242,6 +300,7 @@ PocPreSetInformationOperation(
             ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
             StreamContext->FileSize = Info->EndOfFile.QuadPart;
+            StreamContext->LessThanAesBlockSize = TRUE;
 
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -272,6 +331,7 @@ PocPreSetInformationOperation(
             ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
             StreamContext->FileSize = Info->EndOfFile.QuadPart;
+            StreamContext->LessThanAesBlockSize = TRUE;
 
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -380,7 +440,6 @@ PocPostSetInformationOperationWhenSafe(
     PFILE_RENAME_INFORMATION Buffer = NULL;
 
     WCHAR NewFileName[POC_MAX_NAME_LENGTH] = { 0 };
-    WCHAR NewFileExtension[POC_MAX_NAME_LENGTH] = { 0 };
 
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     BOOLEAN ContextCreated = FALSE;
@@ -422,9 +481,11 @@ PocPostSetInformationOperationWhenSafe(
         else
         {
             if (NULL != TargetFileObject->FileName.Buffer &&
-                TargetFileObject->FileName.Length < sizeof(NewFileName))
+                TargetFileObject->FileName.MaximumLength < sizeof(NewFileName))
             {
-                wcscpy(NewFileName, TargetFileObject->FileName.Buffer);
+                RtlMoveMemory(NewFileName, 
+                    TargetFileObject->FileName.Buffer, 
+                    TargetFileObject->FileName.MaximumLength);
             }
             else
             {
@@ -433,8 +494,10 @@ PocPostSetInformationOperationWhenSafe(
         }
 
 
-        PocParseFileNameExtension(NewFileName, NewFileExtension);
-
+        /*
+        * 如果该文件之前是目标扩展名，那么我们的PostCreate一定为它建过StreamContext，
+        * 所以这里可以凭借这点来判断文件原来是目标还是非目标扩展名。
+        */
         Status = PocFindOrCreateStreamContext(
             Data->Iopb->TargetInstance,
             Data->Iopb->TargetFileObject,
@@ -455,17 +518,19 @@ PocPostSetInformationOperationWhenSafe(
 
             if (POC_IRRELEVENT_FILE_EXTENSION == Status || NULL != TargetFileObject)
             {
-                PocUpdateFlagInStreamContext(StreamContext, 0);
+                /*PocUpdateFlagInStreamContext(StreamContext, 0);*/
 
                 ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
                 StreamContext->IsCipherText = FALSE;
                 StreamContext->FileSize = 0;
-                RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH);
+                RtlZeroMemory(StreamContext->FileName, POC_MAX_NAME_LENGTH * sizeof(WCHAR));
 
                 ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Clear StreamContext NewFileName = %ws.\n", __FUNCTION__, NewFileName));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+                    ("%s->Clear StreamContext NewFileName = %ws.\n", 
+                    __FUNCTION__, NewFileName));
 
             }
             else
