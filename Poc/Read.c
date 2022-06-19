@@ -476,8 +476,8 @@ PocPostReadOperation(
     if (STATUS_SUCCESS == Data->IoStatus.Status)
     {
         if (StartingVbo + (LONGLONG)Data->IoStatus.Information > FileSize &&
-            FltObjects->FileObject->SectionObjectPointer ==
-            StreamContext->OriginSectionObjectPointers)
+            FltObjects->FileObject->SectionObjectPointer !=
+            StreamContext->ShadowSectionObjectPointers)
         {
             Data->IoStatus.Information = FileSize - StartingVbo;
         }
