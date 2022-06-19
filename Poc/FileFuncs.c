@@ -1029,8 +1029,6 @@ NTSTATUS PocReentryToEncrypt(
     }
 
 
-
-
     RtlZeroMemory(&ObjectAttributes, sizeof(ObjectAttributes));
 
     InitializeObjectAttributes(
@@ -1714,6 +1712,106 @@ EXIT:
     {
         FltClose(hFile);
         hFile = NULL;
+    }
+
+    return Status;
+}
+
+
+NTSTATUS PocFindOrCreateStreamContextOutsite(
+    IN PFLT_INSTANCE Instance,
+    IN PWCHAR FileName,
+    IN BOOLEAN CreateIfNotFound)
+{
+    if (NULL == Instance)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Instance is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (NULL == FileName)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    UNICODE_STRING uFileName = { 0 };
+    OBJECT_ATTRIBUTES ObjectAttributes = { 0 };
+
+    HANDLE hFile = NULL;
+    PFILE_OBJECT FileObject = NULL;
+    IO_STATUS_BLOCK IoStatusBlock = { 0 };
+
+    PPOC_STREAM_CONTEXT StreamContext = NULL;
+    BOOLEAN ContextCreated = FALSE;
+
+
+    RtlInitUnicodeString(&uFileName, FileName);
+
+    InitializeObjectAttributes(&ObjectAttributes, &uFileName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = FltCreateFileEx(
+        gFilterHandle,
+        Instance,
+        &hFile,
+        &FileObject,
+        0,
+        &ObjectAttributes,
+        &IoStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE,
+        NULL,
+        0,
+        IO_IGNORE_SHARE_ACCESS_CHECK);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x. FileName = %ws.\n", __FUNCTION__, Status, FileName));
+        goto EXIT;
+    }
+
+    Status = PocFindOrCreateStreamContext(
+        Instance,
+        FileObject,
+        CreateIfNotFound,
+        &StreamContext,
+        &ContextCreated);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        if (CreateIfNotFound)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
+                __FUNCTION__, Status));
+        }
+        goto EXIT;
+    }
+
+    Status = STATUS_SUCCESS;
+
+EXIT:
+
+    if (NULL != FileObject)
+    {
+        ObDereferenceObject(FileObject);
+        FileObject = NULL;
+    }
+
+    if (NULL != hFile)
+    {
+        ZwClose(hFile);
+        hFile = NULL;
+    }
+
+    if (NULL != StreamContext)
+    {
+        FltReleaseContext(StreamContext);
+        StreamContext = NULL;
     }
 
     return Status;

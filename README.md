@@ -39,7 +39,8 @@
   使用InstallShield打包安装包；  
 13.增加进程权限：备份权限进程，比如VMTools和explorer.exe，可以将完整的密文文件从虚拟机中拷贝出，或者  
   从机密文件夹向外拷贝密文文件，和粘贴文件到机密文件夹（未加密的自动加密，已加密的重复加密后自动解密一次）    
-14.在Write加密以后，ObDereferenceObject一个之前建好的FileObject，触发Close创建线程准备写入尾或重入加密。  
+14.在Write加密以后，ObDereferenceObject一个之前建好的FileObject，触发Close创建线程准备写入尾或重入加密；  
+15.允许驱动特权加密或解密机密文件夹以外的文件；驱动卸载时清除明文缓冲，防止明文泄露。  
 ```
 ## Build & Installation：
 1.建议在Windows 10 x64，NTFS环境运行  
@@ -104,6 +105,8 @@ P.S. 文件加密以后，即使关闭驱动（不重启电脑），记事本也
   
 11.使用编译好的或安装包中的PocUserPanel配置各种参数  
 </br><img src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
+## Unfixed：
+授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：

@@ -100,6 +100,20 @@ NTSTATUS PocCleanupSectionObjectPointers(
 
 	if (NULL != StreamContext->ShadowSectionObjectPointers)
 	{
+
+		if (NULL != StreamContext->ShadowSectionObjectPointers->DataSectionObject)
+		{
+			if (NULL != StreamContext->FcbResource)
+			{
+				ExAcquireResourceExclusiveLite(StreamContext->FcbResource, TRUE);
+
+				CcPurgeCacheSection(StreamContext->ShadowSectionObjectPointers, NULL, 0, FALSE);
+
+				ExReleaseResourceLite(StreamContext->FcbResource);
+			}
+		}
+
+
 		if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject &&
 			NULL == StreamContext->ShadowSectionObjectPointers->SharedCacheMap)
 		{
@@ -122,6 +136,8 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		}
 		else
 		{
+
+
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Memory leak. CacheMap isn't NULL. Means file still has chipertext cache map.\n", __FUNCTION__));
 			//KeBugCheck(POC_KEBUGCHECK_TAG);
 		}
@@ -137,7 +153,17 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		if (NULL != StreamContext->OriginSectionObjectPointers->DataSectionObject ||
 			NULL != StreamContext->OriginSectionObjectPointers->SharedCacheMap)
 		{
-			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Fatal error. CacheMap isn't NULL. Means file still has plaintext cache map.\n", __FUNCTION__));
+			if (NULL != StreamContext->FcbResource)
+			{
+				ExAcquireResourceExclusiveLite(StreamContext->FcbResource, TRUE);
+
+				CcPurgeCacheSection(StreamContext->OriginSectionObjectPointers, NULL, 0, FALSE);
+
+				ExReleaseResourceLite(StreamContext->FcbResource);
+			}
+
+			if(NULL != StreamContext->OriginSectionObjectPointers->DataSectionObject)
+				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Fatal error. CacheMap isn't NULL. Means file still has plaintext cache map.\n", __FUNCTION__));
 		}
 	}
 

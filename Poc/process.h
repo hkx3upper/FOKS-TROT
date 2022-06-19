@@ -63,3 +63,5 @@ NTSTATUS PocCreateProcessInfoNode(
 	OUT PPOC_CREATED_PROCESS_INFO* OutProcessInfo);
 
 NTSTATUS PocIsUnauthorizedProcess(IN PWCHAR ProcessName);
+
+NTSTATUS PocGetProcessType(IN PFLT_CALLBACK_DATA Data);

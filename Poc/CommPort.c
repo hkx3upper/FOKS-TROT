@@ -124,6 +124,8 @@ NTSTATUS PocMessageNotifyCallback(
 
 				PFLT_INSTANCE Instance = NULL;
 
+				WCHAR FileExtension[POC_MAX_NAME_LENGTH] = { 0 };
+
 				RtlMoveMemory(TempFileName, "\\??\\", strlen("\\??\\"));
 
 				if (POC_MAX_NAME_LENGTH - strlen(TempFileName) >=
@@ -193,6 +195,38 @@ NTSTATUS PocMessageNotifyCallback(
 					goto EXIT;
 				}
 
+				Status = PocParseFileNameExtension(
+					uFileName.Buffer, 
+					FileExtension);
+
+				if (STATUS_SUCCESS != Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocParseFileNameExtension failed.\n", __FUNCTION__));
+					goto EXIT;
+				}
+
+				Status = PocBypassIrrelevantFileExtension(
+					FileExtension);
+
+				if (POC_IS_TARGET_FILE_EXTENSION != Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
+						("%s->PocBypassIrrelevantFileExtension failed. Irrelevent file extension\n", __FUNCTION__));
+					goto EXIT;
+				}
+
+
+				Status = PocFindOrCreateStreamContextOutsite(
+					Instance, 
+					uFileName.Buffer, 
+					TRUE);
+
+				if (STATUS_SUCCESS != Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
+					goto EXIT;
+				}
+
 				if (POC_PRIVILEGE_DECRYPT == MessageHeader.Command)
 				{
 					Status = PocReentryToDecrypt(
@@ -217,6 +251,7 @@ NTSTATUS PocMessageNotifyCallback(
 						goto EXIT;
 					}
 				}
+
 
 				Status = MessageHeader.Command;
 

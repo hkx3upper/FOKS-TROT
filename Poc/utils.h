@@ -78,7 +78,8 @@ NTSTATUS PocAddSecureExtension(IN const PCHAR extension);
 
 NTSTATUS PocAddSecureExtensionW(IN CONST PWCHAR extension);
 
-NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data);
+NTSTATUS PocBypassIrrelevantBy_PathAndExtension(
+	IN PFLT_CALLBACK_DATA Data);
 
 /**
  * @brief 自动识别任意格式的路径，并将其转化为DOS格式的路径
@@ -95,3 +96,5 @@ NTSTATUS PocBypassIrrelevantFileExtension(
 	IN PWCHAR FileExtension);
 
 NTSTATUS PocInitFolderAndExt();
+
+NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName);

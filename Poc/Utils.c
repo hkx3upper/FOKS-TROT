@@ -3,6 +3,7 @@
 #include "global.h"
 #include "context.h"
 #include "import.h"
+#include "filefuncs.h"
 #include <wdm.h>
 
 
@@ -167,7 +168,8 @@ NTSTATUS PocParseFileNameExtension(
 }
 
 
-NTSTATUS PocBypassIrrelevantFileExtension(IN PWCHAR FileExtension)
+NTSTATUS PocBypassIrrelevantFileExtension(
+	IN PWCHAR FileExtension)
 /*
  * 过滤掉非目标扩展名文件
  */
@@ -717,7 +719,8 @@ NTSTATUS PocAddSecureExtension(IN const PCHAR extension)
 }
 
 
-NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
+NTSTATUS PocBypassIrrelevantBy_PathAndExtension(
+	IN PFLT_CALLBACK_DATA Data)
 /*---------------------------------------------------------
 函数名称:	PocBypassIrrelevantBy_PathAndExtension
 函数描述:	过滤文件扩展名和机密文件夹
@@ -734,7 +737,7 @@ NTSTATUS PocBypassIrrelevantBy_PathAndExtension(IN PFLT_CALLBACK_DATA Data)
 	if (STATUS_SUCCESS == PocGetFileNameOrExtension(Data, FileExtension, FileName))
 	{
 		// TODO minifilter的PreCreate过滤整个文件系统的Create请求，所以先过滤简单的扩展名，如果符合，再过滤路径
-		if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION && 
+		if (PocBypassIrrelevantFileExtension(FileExtension) == POC_IS_TARGET_FILE_EXTENSION &&
 			PocBypassRelevantPath(FileName) == STATUS_SUCCESS)
 		{
 			//PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@d%d: FileName is %ws.\n", __FUNCTION__, __FILE__, __LINE__, FileName));
