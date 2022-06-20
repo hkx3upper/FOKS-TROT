@@ -44,6 +44,7 @@
     <ClCompile Include="FileInfo.c" />
     <ClCompile Include="FileObject.c" />
     <ClCompile Include="Ldrreloc.c" />
+    <ClCompile Include="ManualEncryptDecrypt.c" />
     <ClCompile Include="ProcesSecure.c" />
     <ClCompile Include="Process.c" />
     <ClCompile Include="Read.c" />
@@ -224,6 +225,7 @@
     <ClInclude Include="global.h" />
     <ClInclude Include="import.h" />
     <ClInclude Include="ldrreloc.h" />
+    <ClInclude Include="manualencryptdecrypt.h" />
     <ClInclude Include="processecure.h" />
     <ClInclude Include="process.h" />
     <ClInclude Include="read.h" />
