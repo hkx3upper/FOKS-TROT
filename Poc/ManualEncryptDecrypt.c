@@ -8,8 +8,19 @@
 
 #define MANUAL_ENCRYPT_DECRYPT_BUFFER_TAG 'medb'
 
-NTSTATUS PocGetSectorSize(IN PFLT_INSTANCE Instance, ULONG *sector_size)
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-22 20:20:46
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 获取到当前 Instance attach 到的 volume 的 sector_size
+ * @param [in] {IN PFLT_INSTANCE} Instance
+ * @param [out] {ULONG} *sector_size，传回 sector_size。如果发生了错误传回的值为0
+ * @return {NTSTATUS} STATUS_SUCCESS if successfule
+ */
+NTSTATUS PocGetVolumeSectorSize(IN PFLT_INSTANCE Instance, OUT ULONG *sector_size)
 {
+	*sector_size = 0;
 	PPOC_VOLUME_CONTEXT VolumeContext = NULL;
 	PFLT_VOLUME Volume = NULL;
 	NTSTATUS Status = FltGetVolumeFromInstance(Instance, &Volume);
@@ -42,9 +53,28 @@ EXIT:
 	return Status;
 }
 
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-22 20:22:32
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 对 read_buffer 进行 AES 解密，并将解密后的数据写入到 write_buffer 中。
+ * 会根据 read_buffer 的长度和file_size的长度自动选择相应的解密函数（是padding解密还是密文挪用解密等）。
+ * 如果需要密文挪用的话（即 file_size > AES_BLOCK_SIZE 且 file_size % AES_BLOCK_SIZE !=0 且 当前read_buffer中的数据就是文件中最末尾的数据），
+ * 那就需要保证 bytesRead > AES_BLOCK_SIZE，否则就会出现由于无法进行密文挪用导致的错误。
+ * @param [in] {PCHAR} read_buffer 待解密的数据
+ * @param [in] {ULONG} bytesRead 传入的是解密后的明文的真实长度。这里的长度是指明文的长度。
+ * 比如 如果明文长度只有18个字节，但是加密后会是 2 * AES_BLOCK_SIZE 的长度，那么此时 bytesRead 就是 18字节。
+ * @param [in] {PCHAR} write_buffer 加密后的数据
+ * @param [out] {ULONG*} 传入的是write_buffer缓冲区的大小；传出的是bytesWrite 解密后的明文长度。如果发生了错误或者file_size == 0，那么 bytesWrite传出的值为0
+ * @param [in] {ULONG} file_size 文件的长度。要求是文件的实际内容（加密前）的大小，不能包含文件标识尾的长度。
+ * 因为文件加密后的长度肯定是 AES_BLOCK_SIZE 的整数倍，因此不可以使用加密后的文件大小。而是实际的加密前的文件大小。
+ * @return {NTSTATUS} STATUS_SUCCESS if successfule
+ */
 static NTSTATUS PocManualDecrypt(PCHAR read_buffer,
-								 IN OUT ULONG *bytesRead,
+								 IN ULONG bytesRead,
 								 IN OUT PCHAR write_buffer,
+								 OUT ULONG *bytesWrite,
 								 IN const LONGLONG file_size)
 {
 	NTSTATUS Status = STATUS_SUCCESS;
@@ -53,19 +83,19 @@ static NTSTATUS PocManualDecrypt(PCHAR read_buffer,
 	PCHAR plain_text = write_buffer;
 	if (file_size < AES_BLOCK_SIZE) //必须使用file_size进行判断
 	{
-		// 事实上不可能出现这种情况，因为在加密时，文件大小不足 AES_BLOCK_SIZE 时，会被拓展
-		// 因此加密后的文件至少会有 AES_BLOCK_SIZE 的大小
-		*bytesRead = AES_BLOCK_SIZE;
-		Status = PocAesECBDecrypt(cipher_text, *bytesRead, plain_text, bytesRead);
+		// 因此加密后的文件至少会有 AES_BLOCK_SIZE 的大小。所以这里做了修改。
+		bytesRead = AES_BLOCK_SIZE;
+		Status = PocAesECBDecrypt(cipher_text, bytesRead, plain_text, bytesWrite);
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBDecrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 			goto EXIT;
 		}
+		*bytesWrite = (ULONG)file_size;
 	}
-	else if (*bytesRead % AES_BLOCK_SIZE == 0) //必须使用bytesRead进行判断
+	else if (bytesRead % AES_BLOCK_SIZE == 0) //必须使用bytesRead进行判断
 	{
-		Status = PocAesECBDecrypt(cipher_text, *bytesRead, plain_text, bytesRead);
+		Status = PocAesECBDecrypt(cipher_text, bytesRead, plain_text, bytesWrite);
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBDecrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
@@ -77,21 +107,44 @@ static NTSTATUS PocManualDecrypt(PCHAR read_buffer,
 		// bytesRead 做了特殊处理，保证 bytesRead > AES_BLOCK_SIZE，可以做密文挪用的解密操作
 
 		// 需要进行密文挪用，且此时的数据一定是最后一次读取到的数据
-		Status = PocAesECBDecrypt_CiphertextStealing(cipher_text, *bytesRead, plain_text);
+		Status = PocAesECBDecrypt_CiphertextStealing(cipher_text, bytesRead, plain_text);
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBDecrypt_CiphertextStealing failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 			goto EXIT;
 		}
+		*bytesWrite = bytesRead;
 	}
 
 EXIT:
+	if (STATUS_SUCCESS != Status)
+	{
+		*bytesWrite = 0;
+	}
 	return Status;
 }
 
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-22 20:22:32
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 对 read_buffer 进行 AES 加密，并将加密后的数据写入到 write_buffer 中。
+ * 会根据 read_buffer 的长度和 file_size 的长度自动选择是否对进行 padding 或者密文挪用 或者不做特殊处理。
+ * 如果需要密文挪用的话（即 file_size > AES_BLOCK_SIZE 且 file_size % AES_BLOCK_SIZE !=0 且 当前read_buffer中的数据就是文件最后需要加密写入的数据），
+ * 那就需要保证 bytesRead > AES_BLOCK_SIZE，否则会由于无法进行密文挪用而出现错误。
+ * @param [in] {PCHAR} read_buffer 待加密的数据
+ * @param [in] {ULONG} bytesRead 待加密的数据的长度。加密后的数据的长度也会由此传出。
+ * 内部使用的是ECB，因此加密后的数据长度就是 bytesREAD 按照 AES_BLOCK_SIZE 取整后的长度。
+ * @param [in] {PCHAR} write_buffer 加密后的数据
+ * @param [in|out] {ULONG*} 传入的是write_buffer缓冲区的大小；传出的是bytesWrite 加密后的数据的长度，肯定是 AES_BLOCK_SIZE 的整数倍。如果发生了错误或者file_size == 0，那么 bytesWrite传出的值为0
+ * @param [in] {ULONG} file_size 文件的长度。要求是文件的实际内容（加密前）的大小，不能包含文件标识尾的长度。
+ * @return {NTSTATUS} STATUS_SUCCESS if successfule
+ */
 static NTSTATUS PocManualEncrypt(PCHAR read_buffer,
-								 IN OUT ULONG *bytesRead,
+								 IN ULONG bytesRead,
 								 IN OUT PCHAR write_buffer,
+								 OUT ULONG *bytesWrite,
 								 IN const LONGLONG file_size)
 {
 	NTSTATUS Status = STATUS_SUCCESS;
@@ -100,19 +153,18 @@ static NTSTATUS PocManualEncrypt(PCHAR read_buffer,
 	PCHAR cipher_text = write_buffer;
 	if (file_size < AES_BLOCK_SIZE) //必须使用file_size进行判断
 	{
-		//此时一次读取就能读出所有的信息
-		RtlZeroMemory(plain_text + *bytesRead, AES_BLOCK_SIZE - *bytesRead);
-		*bytesRead = AES_BLOCK_SIZE;											   //不需要恢复成原来的大小，因为PocAesECBDecrypt也会将其修改为 AES_BLOCK_SIZE
-		Status = PocAesECBEncrypt(plain_text, *bytesRead, cipher_text, bytesRead); // bytesRead 会自动被加密函数设置为密文的大小
+		bytesRead = AES_BLOCK_SIZE; // padding
+
+		Status = PocAesECBEncrypt(plain_text, bytesRead, cipher_text, bytesWrite); // bytesRead 会自动被加密函数设置为密文的大小
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBEncrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 			goto EXIT;
 		}
 	}
-	else if (*bytesRead % AES_BLOCK_SIZE == 0) //必须使用bytesRead进行判断
+	else if (bytesRead % AES_BLOCK_SIZE == 0) //必须使用bytesRead进行判断
 	{
-		Status = PocAesECBEncrypt(plain_text, *bytesRead, cipher_text, bytesRead);
+		Status = PocAesECBEncrypt(plain_text, bytesRead, cipher_text, bytesWrite);
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBEncrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
@@ -124,15 +176,20 @@ static NTSTATUS PocManualEncrypt(PCHAR read_buffer,
 		// bytesRead 做了特殊处理，保证 bytesRead > AES_BLOCK_SIZE，可以做密文挪用
 
 		// 需要进行密文挪用，且此时的数据一定是最后一次读取到的数据
-		Status = PocAesECBEncrypt_CiphertextStealing(plain_text, *bytesRead, cipher_text);
+		Status = PocAesECBEncrypt_CiphertextStealing(plain_text, bytesRead, cipher_text);
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBEncrypt_CiphertextStealing failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 			goto EXIT;
 		}
+		*bytesWrite = ROUND_TO_SIZE(bytesRead, AES_BLOCK_SIZE);
 	}
 
 EXIT:
+	if (STATUS_SUCCESS != Status)
+	{
+		*bytesWrite = 0;
+	}
 	return Status;
 }
 
@@ -193,10 +250,10 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 	}
 
 	ULONG volume_sector_size = 0;
-	Status = PocGetSectorSize(Instance, &volume_sector_size);
+	Status = PocGetVolumeSectorSize(Instance, &volume_sector_size);
 	if (STATUS_SUCCESS != Status)
 	{
-		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocGetSectorSize failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocGetVolumeSectorSize failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 		return Status;
 	}
 
@@ -229,8 +286,7 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 				FILE_OPEN,
 				FILE_NON_DIRECTORY_FILE |
 					FILE_SEQUENTIAL_ONLY |
-					FILE_NO_INTERMEDIATE_BUFFERING |
-					FILE_WRITE_THROUGH,
+					FILE_NO_INTERMEDIATE_BUFFERING,
 				NULL,
 				0,
 				IO_FORCE_ACCESS_CHECK);
@@ -388,7 +444,8 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 						&byteOffset, //不会被自动更新
 						BUFFER_SIZE,
 						read_buffer,
-						FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
+						FLTFL_IO_OPERATION_NON_CACHED |
+							FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
 						&bytesRead, // A pointer to a caller-allocated variable that receives the number of bytes read from the file.
 						NULL,
 						NULL,
@@ -415,27 +472,18 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 						bytesRead -= PAGE_SIZE; //密文挪用只需要减去一个AES_BLOCK_SIZE即可，这里减去1个页面大小是为了与sector size对齐
 												// 另外既然剩下还有一些数据未读取，那么当前bytesRead == BUFFER_SIZE，无需担心不够减的情况
 					}
-
-					bytesWrite = bytesRead;
 				}
 
-				{ //加密 or 解密
+				{							  //加密 or 解密
+					bytesWrite = BUFFER_SIZE; //需要设置为缓冲区的大小。
+
 					if (is_for_encrypt)
 					{
-						Status = PocManualEncrypt(read_buffer, &bytesRead, write_buffer, file_size.QuadPart);
+						Status = PocManualEncrypt(read_buffer, bytesRead, write_buffer, &bytesWrite, file_size.QuadPart);
 						if (!NT_SUCCESS(Status))
 						{
 							PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocManualEncrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 							__leave;
-						}
-
-						{	// TODO 测试用
-							/* Status = PocManualDecrypt(write_buffer, &bytesRead, read_buffer, file_size.QuadPart);
-							 if (!NT_SUCCESS(Status))
-							 {
-								 PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocManualDecrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
-								 __leave;
-							 }*/
 						}
 
 						bytesWrite = ROUND_TO_SIZE(bytesWrite, AES_BLOCK_SIZE);
@@ -444,7 +492,7 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 					{
 						// 由于此时 bytesRead 是根据 file_size 进行了截断
 
-						Status = PocManualDecrypt(read_buffer, &bytesRead, write_buffer, file_size.QuadPart);
+						Status = PocManualDecrypt(read_buffer, bytesRead, write_buffer, &bytesWrite, file_size.QuadPart);
 						if (!NT_SUCCESS(Status))
 						{
 							PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocManualDecrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
@@ -519,24 +567,25 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 			}
 		}
 
-		{ // 清除缓存
+		{
+			//这里使用了new_status，因为这边发生错误的话，是不影响文件的加密或者解密
+			NTSTATUS new_status = Status;
 
-			if (!is_for_encrypt)
+			// if (!is_for_encrypt)
 			{
 				PPOC_STREAM_CONTEXT stream_context = NULL;
-
 				__try
 				{
-					Status = PocFindOrCreateStreamContext(Instance, FileObject, FALSE, &stream_context, NULL);
-					if (Status != STATUS_SUCCESS)
+					new_status = PocFindOrCreateStreamContext(Instance, FileObject, FALSE, &stream_context, NULL);
+					if (new_status != STATUS_SUCCESS)
 					{
-						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocFindOrCreateStreamContext failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocFindOrCreateStreamContext failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, new_status));
 						__leave;
 					}
 					if (stream_context)
 					{
 						ExEnterCriticalRegionAndAcquireResourceExclusive(stream_context->Resource);
-						stream_context->IsCipherText = FALSE;
+						stream_context->IsCipherText = is_for_encrypt;
 						ExReleaseResourceAndLeaveCriticalRegion(stream_context->Resource);
 					}
 				}
