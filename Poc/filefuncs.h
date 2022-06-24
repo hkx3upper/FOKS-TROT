@@ -89,3 +89,17 @@ NTSTATUS PocFindOrCreateStreamContextOutsite(
  * @return true if it is encryption_tailer, false otherwise
  */
 BOOLEAN PocIsAppendEncryptionTailer(PPOC_ENCRYPTION_TAILER encryption_tailer);
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-24 11:07:28
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 通过以非重入的形式读取文件标识尾判断文件是否有文件标识尾。如果有的话，返回值是 STATUS_SUCCESS。
+ * 该函数运行在 <= APC_LEVEL 级别。不能在PreCreate中调用，因为此时FileObject还未打开。
+ * @param [in] {IN PFLT_INSTANCE} Instance
+ * @param [in] {PWCHAR} FileObject 已经打开的文件对象。该对象最早是在PostCreate中可以获取到。
+ * @return NTSTATUS STATUS_SUCCESS if it is encryption_tailer
+ */
+NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
+                               _In_ PFILE_OBJECT FileObject);

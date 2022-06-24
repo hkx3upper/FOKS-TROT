@@ -1829,18 +1829,138 @@ EXIT:
  */
 BOOLEAN PocIsAppendEncryptionTailer(PPOC_ENCRYPTION_TAILER encryption_tailer)
 {
-	BOOLEAN true_encryption_tailer_bool = TRUE;
-	for (int i = 0; i < sizeof(EncryptionTailer.Flag); i++)
-	{
-		if (encryption_tailer->Flag[i] != EncryptionTailer.Flag[i])
-		{
-			true_encryption_tailer_bool = FALSE;
-			break;
-		}
-	}
-	if (strcmp(encryption_tailer->EncryptionAlgorithmType, EncryptionTailer.EncryptionAlgorithmType) != 0)
-	{
-		true_encryption_tailer_bool = FALSE;
-	}
-	return true_encryption_tailer_bool;
+    BOOLEAN true_encryption_tailer_bool = TRUE;
+    for (int i = 0; i < sizeof(EncryptionTailer.Flag); i++)
+    {
+        if (encryption_tailer->Flag[i] != EncryptionTailer.Flag[i])
+        {
+            true_encryption_tailer_bool = FALSE;
+            break;
+        }
+    }
+    if (strcmp(encryption_tailer->EncryptionAlgorithmType, EncryptionTailer.EncryptionAlgorithmType) != 0)
+    {
+        true_encryption_tailer_bool = FALSE;
+    }
+    return true_encryption_tailer_bool;
+}
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-24 11:07:28
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 通过以非重入的形式读取文件标识尾判断文件是否有文件标识尾。如果有的话，返回值是 STATUS_SUCCESS。
+ * 该函数运行在 <= APC_LEVEL 级别。不能在PreCreate中调用，因为此时FileObject还未打开。
+ * @param [in] {IN PFLT_INSTANCE} Instance
+ * @param [in] {PWCHAR} FileObject 已经打开的文件对象。该对象最早是在PostCreate中可以获取到。
+ * @return NTSTATUS STATUS_SUCCESS if it is encryption_tailer
+ */
+NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
+                               _In_ PFILE_OBJECT FileObject)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    PCHAR read_buffer = NULL;
+    const int BUFFER_SIZE = 2 * PAGE_SIZE;
+    __try
+    {
+
+        ULONG volume_sector_size = 0;
+        { //获取volume_sector_size
+            Status = PocGetVolumeSectorSize(Instance, &volume_sector_size);
+            if (!NT_SUCCESS(Status))
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocGetVolumeSectorSize failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                __leave;
+            }
+        }
+
+        LARGE_INTEGER file_size = {0}; // in bytes
+        {                              // 获取文件大小
+            FILE_STANDARD_INFORMATION info;
+            Status = FltQueryInformationFile(
+                Instance,
+                FileObject,
+                &info,
+                sizeof(info),
+                FileStandardInformation,
+                NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltQueryInformationFile failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                __leave;
+            }
+            file_size = info.EndOfFile; // 当前的文件大小可能包含了文件标识尾
+            if (file_size.QuadPart < PAGE_SIZE)
+            {
+                __leave;
+            }
+        }
+
+        { // 分配内存
+            read_buffer = (PCHAR)FltAllocatePoolAlignedWithTag(Instance, NonPagedPool, BUFFER_SIZE, READ_BUFFER_TAG);
+            if (read_buffer == NULL)
+            {
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltAllocatePoolAlignedWithTag failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                __leave;
+            }
+        }
+
+        PPOC_ENCRYPTION_TAILER encryption_tailer = NULL;
+        { //读取文件标识尾
+            PCHAR encryption_tailer_buffer = read_buffer;
+
+            {
+                LARGE_INTEGER byteOffset = {0};
+                ULONG bytesRead = 0;
+
+                byteOffset.QuadPart = file_size.QuadPart - PAGE_SIZE;
+
+                // 这里需要对byteOffset进行对齐
+
+                byteOffset.QuadPart = ROUND_TO_SIZE(byteOffset.QuadPart, volume_sector_size);
+
+                Status = FltReadFile(
+                    Instance,
+                    FileObject,
+                    &byteOffset, //不会被自动更新
+                    PAGE_SIZE,
+                    encryption_tailer_buffer,
+                    FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
+                    &bytesRead, // A pointer to a caller-allocated variable that receives the number of bytes read from the file.
+                    NULL,
+                    NULL);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltReadFileEx failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                    __leave;
+                }
+
+                if (PocIsAppendEncryptionTailer((PPOC_ENCRYPTION_TAILER)encryption_tailer_buffer))
+                {
+                    encryption_tailer = (PPOC_ENCRYPTION_TAILER)encryption_tailer_buffer;
+                }
+            }
+        }
+
+        if (encryption_tailer == NULL)
+        {
+            Status = STATUS_NOT_FOUND;
+        }
+        else
+        {
+            Status = STATUS_SUCCESS;
+        }
+    }
+    __finally
+    {
+        if (read_buffer != NULL)
+        {
+            FltFreePoolAlignedWithTag(Instance, read_buffer, READ_BUFFER_TAG);
+        }
+    }
+
+    return Status;
 }

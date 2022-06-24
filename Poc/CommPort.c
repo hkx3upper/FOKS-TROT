@@ -217,16 +217,16 @@ NTSTATUS PocMessageNotifyCallback(
 				}
 
 
-				Status = PocFindOrCreateStreamContextOutsite(
-					Instance, 
-					uFileName.Buffer, 
-					TRUE);
+				// Status = PocFindOrCreateStreamContextOutsite(
+				// 	Instance, 
+				// 	uFileName.Buffer, 
+				// 	TRUE);
 
-				if (STATUS_SUCCESS != Status)
-				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
-					goto EXIT;
-				}
+				// if (STATUS_SUCCESS != Status)
+				// {
+				// 	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
+				// 	goto EXIT;
+				// }
 
 				if (POC_PRIVILEGE_DECRYPT == MessageHeader.Command)
 				{

@@ -136,7 +136,7 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 			// 判断文件大小，如果大于等于文件标识尾的大小，则尝试读取文件标识尾，如果存在文件标识尾，则判断当前文件的文件状态是否是已加密的
 			// 另外需要对重命名等情况进行考虑
 
-			if (file_size.QuadPart > PAGE_SIZE)
+			if (file_size.QuadPart >= PAGE_SIZE)
 			{
 				LARGE_INTEGER byteOffset = {0};
 				ULONG bytesRead = 0;
@@ -150,7 +150,7 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 				Status = FltReadFileEx(
 					Instance,
 					FileObject,
-					&byteOffset, //会被自动更新
+					&byteOffset, //不会被自动更新
 					PAGE_SIZE,
 					encryption_tailer_buffer,
 					FLTFL_IO_OPERATION_NON_CACHED | FLTFL_IO_OPERATION_DO_NOT_UPDATE_BYTE_OFFSET,
