@@ -1816,3 +1816,31 @@ EXIT:
 
     return Status;
 }
+
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-21 15:29:06
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 判断 encryption_tailer 究竟是不是 encryption_tailer
+ * @param {PPOC_ENCRYPTION_TAILER} encryption_tailer
+ * @return true if it is encryption_tailer, false otherwise
+ */
+BOOLEAN PocIsAppendEncryptionTailer(PPOC_ENCRYPTION_TAILER encryption_tailer)
+{
+	BOOLEAN true_encryption_tailer_bool = TRUE;
+	for (int i = 0; i < sizeof(EncryptionTailer.Flag); i++)
+	{
+		if (encryption_tailer->Flag[i] != EncryptionTailer.Flag[i])
+		{
+			true_encryption_tailer_bool = FALSE;
+			break;
+		}
+	}
+	if (strcmp(encryption_tailer->EncryptionAlgorithmType, EncryptionTailer.EncryptionAlgorithmType) != 0)
+	{
+		true_encryption_tailer_bool = FALSE;
+	}
+	return true_encryption_tailer_bool;
+}

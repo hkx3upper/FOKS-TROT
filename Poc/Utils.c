@@ -798,3 +798,49 @@ EXIT:
 
 	return Status;
 }
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-22 20:20:46
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 获取到当前 Instance attach 到的 volume 的 sector_size
+ * @param [in] {IN PFLT_INSTANCE} Instance
+ * @param [out] {ULONG} *sector_size，传回 sector_size。如果发生了错误传回的值为0
+ * @return {NTSTATUS} STATUS_SUCCESS if successfule
+ */
+NTSTATUS PocGetVolumeSectorSize(IN PFLT_INSTANCE Instance, OUT ULONG *sector_size)
+{
+	*sector_size = 0;
+	PPOC_VOLUME_CONTEXT VolumeContext = NULL;
+	PFLT_VOLUME Volume = NULL;
+	NTSTATUS Status = FltGetVolumeFromInstance(Instance, &Volume);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: FltGetVolumeFromInstance failed, Status: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		goto EXIT;
+	}
+
+	Status = FltGetVolumeContext(gFilterHandle, Volume, &VolumeContext);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: FltGetVolumeContext failed, Status: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		goto EXIT;
+	}
+	else
+	{
+		*sector_size = VolumeContext->SectorSize;
+	}
+
+EXIT:
+	if (VolumeContext)
+	{
+		FltReleaseContext(VolumeContext);
+	}
+	if (Volume)
+	{
+		FltObjectDereference(Volume);
+	}
+	return Status;
+}
+

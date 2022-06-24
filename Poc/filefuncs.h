@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "global.h"
 #include "context.h"
@@ -77,3 +77,15 @@ NTSTATUS PocFindOrCreateStreamContextOutsite(
 	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName,
 	IN BOOLEAN CreateIfNotFound);
+
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-21 15:29:06
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 判断 encryption_tailer 究竟是不是 encryption_tailer
+ * @param {PPOC_ENCRYPTION_TAILER} encryption_tailer
+ * @return true if it is encryption_tailer, false otherwise
+ */
+BOOLEAN PocIsAppendEncryptionTailer(PPOC_ENCRYPTION_TAILER encryption_tailer);
