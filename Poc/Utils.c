@@ -812,7 +812,7 @@ EXIT:
 NTSTATUS PocGetVolumeSectorSize(IN PFLT_INSTANCE Instance, OUT ULONG *sector_size)
 {
 	*sector_size = 0;
-	// PPOC_VOLUME_CONTEXT VolumeContext = NULL;
+	PPOC_VOLUME_CONTEXT VolumeContext = NULL;
 	PFLT_VOLUME Volume = NULL;
 	NTSTATUS Status = FltGetVolumeFromInstance(Instance, &Volume);
 	if (!NT_SUCCESS(Status))
@@ -821,24 +821,24 @@ NTSTATUS PocGetVolumeSectorSize(IN PFLT_INSTANCE Instance, OUT ULONG *sector_siz
 		goto EXIT;
 	}
 
-	// Status = FltGetVolumeContext(gFilterHandle, Volume, &VolumeContext);
-	// if (!NT_SUCCESS(Status))
-	// {
-	// 	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: FltGetVolumeContext failed, Status: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
-	// 	goto EXIT;
-	// }
-	// else
-	// {
-	// 	*sector_size = VolumeContext->SectorSize;
-	// }
+	Status = FltGetVolumeContext(gFilterHandle, Volume, &VolumeContext);
+	if (!NT_SUCCESS(Status))
+	{
+		PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d: FltGetVolumeContext failed, Status: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+		goto EXIT;
+	}
+	else
+	{
+		*sector_size = VolumeContext->SectorSize;
+	}
 
-	*sector_size = PocQueryVolumeSectorSize(Volume);
+	// *sector_size = PocQueryVolumeSectorSize(Volume);
 
 EXIT:
-	// if (VolumeContext)
-	// {
-	// 	FltReleaseContext(VolumeContext);
-	// }
+	if (VolumeContext)
+	{
+		FltReleaseContext(VolumeContext);
+	}
 	if (Volume)
 	{
 		FltObjectDereference(Volume);

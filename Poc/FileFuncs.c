@@ -1887,6 +1887,7 @@ NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
             file_size = info.EndOfFile; // 当前的文件大小可能包含了文件标识尾
             if (file_size.QuadPart < PAGE_SIZE)
             {
+                Status = STATUS_NOT_FOUND;
                 __leave;
             }
         }
