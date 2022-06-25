@@ -105,11 +105,11 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		{
 			if (NULL != StreamContext->FcbResource)
 			{
-				ExAcquireResourceExclusiveLite(StreamContext->FcbResource, TRUE);
+				ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->FcbResource);
 
 				CcPurgeCacheSection(StreamContext->ShadowSectionObjectPointers, NULL, 0, FALSE);
 
-				ExReleaseResourceLite(StreamContext->FcbResource);
+				ExReleaseResourceAndLeaveCriticalRegion(StreamContext->FcbResource);
 			}
 		}
 
@@ -155,11 +155,11 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		{
 			if (NULL != StreamContext->FcbResource)
 			{
-				ExAcquireResourceExclusiveLite(StreamContext->FcbResource, TRUE);
+				ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->FcbResource);
 
 				CcPurgeCacheSection(StreamContext->OriginSectionObjectPointers, NULL, 0, FALSE);
 
-				ExReleaseResourceLite(StreamContext->FcbResource);
+				ExReleaseResourceAndLeaveCriticalRegion(StreamContext->FcbResource);
 			}
 
 			if(NULL != StreamContext->OriginSectionObjectPointers->DataSectionObject)
