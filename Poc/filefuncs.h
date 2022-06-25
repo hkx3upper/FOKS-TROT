@@ -70,7 +70,6 @@ NTSTATUS PocReadFileFromCache(
 
 NTSTATUS PocInitFlushFileObject(
 	IN PWCHAR FileName,
-	IN PFLT_INSTANCE Instance,
 	IN OUT PFILE_OBJECT* FileObject);
 
 NTSTATUS PocFindOrCreateStreamContextOutsite(
@@ -103,3 +102,7 @@ BOOLEAN PocIsAppendEncryptionTailer(PPOC_ENCRYPTION_TAILER encryption_tailer);
  */
 NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
                                _In_ PFILE_OBJECT FileObject);
+VOID PocPurgeCache(
+	IN PWCHAR FileName,
+	IN PFLT_INSTANCE Instance,
+	IN PSECTION_OBJECT_POINTERS SectionObjectPointers);
