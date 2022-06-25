@@ -1643,14 +1643,8 @@ EXIT:
 
 NTSTATUS PocInitFlushFileObject(
     IN PWCHAR FileName,
-    IN PFLT_INSTANCE Instance,
     IN OUT PFILE_OBJECT* FileObject)
 {
-    if (NULL == Instance)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Instance is NULL.\n", __FUNCTION__));
-        return STATUS_INVALID_PARAMETER;
-    }
 
     if (NULL == FileName)
     {
@@ -1815,4 +1809,76 @@ EXIT:
     }
 
     return Status;
+}
+
+
+VOID PocPurgeCache(
+    IN PWCHAR FileName,
+    IN PFLT_INSTANCE Instance,
+    IN PSECTION_OBJECT_POINTERS SectionObjectPointers)
+{
+    if (NULL == FileName)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FileName is NULL.\n", __FUNCTION__));
+        return;
+    }
+
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    UNICODE_STRING uFileName = { 0 };
+    OBJECT_ATTRIBUTES ObjectAttributes = { 0 };
+
+    HANDLE hFile = NULL;
+    PFILE_OBJECT FileObject = NULL;
+    IO_STATUS_BLOCK IoStatusBlock = { 0 };
+
+
+    RtlInitUnicodeString(&uFileName, FileName);
+
+    InitializeObjectAttributes(&ObjectAttributes, &uFileName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+
+    Status = FltCreateFileEx(
+        gFilterHandle,
+        Instance,
+        &hFile,
+        &FileObject,
+        0,
+        &ObjectAttributes,
+        &IoStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_NORMAL,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        FILE_OPEN,
+        FILE_NON_DIRECTORY_FILE,
+        NULL,
+        0,
+        IO_IGNORE_SHARE_ACCESS_CHECK);
+
+    if (STATUS_SUCCESS != Status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocReadFileNoCache->FltCreateFileEx failed. Status = 0x%x\n", Status));
+        goto EXIT;
+    }
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->Resource);
+
+    CcPurgeCacheSection(SectionObjectPointers, NULL, 0, FALSE);
+
+    ExReleaseResourceAndLeaveCriticalRegion(((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->Resource);
+
+EXIT:
+
+    if (NULL != hFile)
+    {
+        FltClose(hFile);
+        hFile = NULL;
+    }
+
+    if (NULL != FileObject)
+    {
+        ObDereferenceObject(FileObject);
+        FileObject = NULL;
+    }
+
 }

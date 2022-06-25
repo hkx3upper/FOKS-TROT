@@ -75,7 +75,6 @@ typedef struct _POC_STREAM_CONTEXT
     */
     BOOLEAN IsReEncrypted;
 
-    PERESOURCE FcbResource;
 
     PERESOURCE Resource;
 

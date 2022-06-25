@@ -70,10 +70,14 @@ NTSTATUS PocReadFileFromCache(
 
 NTSTATUS PocInitFlushFileObject(
 	IN PWCHAR FileName,
-	IN PFLT_INSTANCE Instance,
 	IN OUT PFILE_OBJECT* FileObject);
 
 NTSTATUS PocFindOrCreateStreamContextOutsite(
 	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName,
 	IN BOOLEAN CreateIfNotFound);
+
+VOID PocPurgeCache(
+	IN PWCHAR FileName,
+	IN PFLT_INSTANCE Instance,
+	IN PSECTION_OBJECT_POINTERS SectionObjectPointers);

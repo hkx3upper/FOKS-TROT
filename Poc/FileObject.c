@@ -103,16 +103,12 @@ NTSTATUS PocCleanupSectionObjectPointers(
 
 		if (NULL != StreamContext->ShadowSectionObjectPointers->DataSectionObject)
 		{
-			if (NULL != StreamContext->FcbResource)
-			{
-				ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->FcbResource);
-
-				CcPurgeCacheSection(StreamContext->ShadowSectionObjectPointers, NULL, 0, FALSE);
-
-				ExReleaseResourceAndLeaveCriticalRegion(StreamContext->FcbResource);
-			}
+			PocPurgeCache(
+				StreamContext->FileName, 
+				StreamContext->Instance, 
+				StreamContext->ShadowSectionObjectPointers);
 		}
-
+		
 
 		if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject &&
 			NULL == StreamContext->ShadowSectionObjectPointers->SharedCacheMap)
@@ -153,14 +149,10 @@ NTSTATUS PocCleanupSectionObjectPointers(
 		if (NULL != StreamContext->OriginSectionObjectPointers->DataSectionObject ||
 			NULL != StreamContext->OriginSectionObjectPointers->SharedCacheMap)
 		{
-			if (NULL != StreamContext->FcbResource)
-			{
-				ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->FcbResource);
-
-				CcPurgeCacheSection(StreamContext->OriginSectionObjectPointers, NULL, 0, FALSE);
-
-				ExReleaseResourceAndLeaveCriticalRegion(StreamContext->FcbResource);
-			}
+			PocPurgeCache(
+				StreamContext->FileName,
+				StreamContext->Instance,
+				StreamContext->OriginSectionObjectPointers);
 
 			if(NULL != StreamContext->OriginSectionObjectPointers->DataSectionObject)
 				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Fatal error. CacheMap isn't NULL. Means file still has plaintext cache map.\n", __FUNCTION__));

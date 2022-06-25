@@ -894,7 +894,10 @@ PocPostCreateOperationWhenSafe(
         if (wcslen(FileName) < POC_MAX_NAME_LENGTH)
             RtlMoveMemory(StreamContext->FileName, FileName, wcslen(FileName) * sizeof(WCHAR));
 
-        StreamContext->FcbResource = ((PFSRTL_ADVANCED_FCB_HEADER)(FltObjects->FileObject->FsContext))->Resource;
+        StreamContext->OriginSectionObjectPointers = FltObjects->FileObject->SectionObjectPointer;
+
+        StreamContext->Volume = FltObjects->Volume;
+        StreamContext->Instance = FltObjects->Instance;
 
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
@@ -914,7 +917,6 @@ PocPostCreateOperationWhenSafe(
     {
         Status = PocInitFlushFileObject(
             StreamContext->FileName,
-            FltObjects->Instance,
             &StreamContext->FlushFileObject);
     }
 
@@ -991,13 +993,13 @@ PocPostCreateOperationWhenSafe(
     * 应该以DataSectionObject是否创建为准
     */
     if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
-        (FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
+        (FILE_READ_DATA | FILE_READ_ATTRIBUTES | FILE_READ_EA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
         POC_IS_AUTHORIZED_PROCESS != ProcessType)
     {
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+        /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
             ("\n%s->SectionObjectPointers operation enter Process = %ws File = %ws.\n",
-                __FUNCTION__, ProcessName, FileName));
+                __FUNCTION__, ProcessName, FileName));*/
 
         /*
         * 刷一下明文缓冲，保持获取到的密文是最新的
@@ -1049,8 +1051,8 @@ PocPostCreateOperationWhenSafe(
 
 
 
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
-                __FUNCTION__, StreamContext->FileName));
+            //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->%ws already has ciphertext cache map. Change FO->SOP to chiphertext SOP.\n",
+            //    __FUNCTION__, StreamContext->FileName));
         }
 
 
@@ -1236,9 +1238,6 @@ PocPostCloseOperationWhenSafe(
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
         StreamContext->AppendTailerThreadStart = TRUE;
-
-        StreamContext->Volume = FltObjects->Volume;
-        StreamContext->Instance = FltObjects->Instance;
 
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
