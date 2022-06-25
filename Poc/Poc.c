@@ -29,6 +29,7 @@ Environment:
 #include "process.h"
 #include "processecure.h"
 #include "Dpc.h"
+#include "context.h"
 
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
@@ -709,50 +710,6 @@ PocPreCreateOperation (
 
     NTSTATUS Status;
 
-    WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
-
-    Status = PocGetFileNameOrExtension(Data, NULL, FileName);
-
-    if (STATUS_SUCCESS != Status)
-    {
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto EXIT;
-    }
-
-    /*
-    * 过滤掉非目标扩展名文件的Create
-    */
-    Status = PocBypassIrrelevantBy_PathAndExtension(
-        Data);
-
-    /*
-    * 特权加密以后的文件，即便不是在机密文件夹内，也会被驱动控制，
-    */
-    if (POC_IRRELEVENT_FILE_EXTENSION == Status)
-    {
-
-        if (PocFindOrCreateStreamContextOutsite(
-            Data->Iopb->TargetInstance,
-            FileName,
-            FALSE) == STATUS_SUCCESS)
-        {
-            
-        }
-        else
-        {
-            Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-            goto EXIT;
-        }
-    }
-
-    //Status = PocBypassIrrelevantFileExtension(FileExtension);
-
-    //if (POC_IRRELEVENT_FILE_EXTENSION == Status)
-    //{
-    //    Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-    //    goto EXIT;
-    //}
-
     /*
     * FltDoCompletionProcessingWhenSafe要求必须是IRP Operation
     */
@@ -794,6 +751,20 @@ PocPostCreateOperation(
         goto EXIT;
     }
 
+    Status = PocBypassIrrelevantBy_PathAndExtension(
+        Data);
+    if (POC_IRRELEVENT_FILE_EXTENSION == Status)
+    {
+        Status = PocIsFileUnderControl(FltObjects->Instance, FltObjects->FileObject);
+        if (STATUS_SUCCESS == Status)
+        {
+        }
+        else
+        {//既不是 机密文件夹下的机密拓展名的文件，也不存在文件标识尾，则不进行处理
+            Status = FLT_POSTOP_FINISHED_PROCESSING;
+            goto EXIT;
+        }
+    }
    
     if (!FltDoCompletionProcessingWhenSafe(Data,
         FltObjects,

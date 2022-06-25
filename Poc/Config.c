@@ -61,8 +61,9 @@ const PWCHAR secure_process[] = {
 	/*
 	* ”√ªß≥Ã–Ú
 	*/
-	L"C:\\Windows\\System32\\notepad.exe",
+	// L"C:\\Windows\\System32\\notepad.exe",
 	L"C:\\Desktop\\npp.7.8.1.bin\\notepad++.exe",
+	L"C:\\Program Files\\Notepad++\\notepad++.exe",
 
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wps.exe",
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wpp.exe",
@@ -78,7 +79,7 @@ const PWCHAR secure_process[] = {
 	L"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.exe",
 	L"C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.exe",
 
-	L"C:\\Program Files\\Microsoft VS Code\\Code.exe",
+	// L"C:\\Program Files\\Microsoft VS Code\\Code.exe",
 	L"C:\\Program Files\\Autodesk\\AutoCAD 2020\\acad.exe",
 	L"C:\\WINDOWS\\system32\\certutil.exe",
 	L"C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",

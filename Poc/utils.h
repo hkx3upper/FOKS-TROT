@@ -98,3 +98,17 @@ NTSTATUS PocBypassIrrelevantFileExtension(
 NTSTATUS PocInitFolderAndExt();
 
 NTSTATUS PocBypassRelevantPath(IN PWCHAR FileName);
+
+
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-06-22 20:20:46
+ * @LastEditors: wangzhankun
+ * @update:
+ * @brief 获取到当前 Instance attach 到的 volume 的 sector_size
+ * @param [in] {IN PFLT_INSTANCE} Instance
+ * @param [out] {ULONG} *sector_size，传回 sector_size。如果发生了错误传回的值为0
+ * @return {NTSTATUS} STATUS_SUCCESS if successfule
+ */
+NTSTATUS PocGetVolumeSectorSize(IN PFLT_INSTANCE Instance, OUT ULONG *sector_size);
+

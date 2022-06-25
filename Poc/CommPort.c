@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "filefuncs.h"
 #include "process.h"
+#include "manualencryptdecrypt.h"
 
 PFLT_PORT gServerPort = NULL;
 PFLT_PORT gClientPort = NULL;
@@ -216,22 +217,24 @@ NTSTATUS PocMessageNotifyCallback(
 				}
 
 
-				Status = PocFindOrCreateStreamContextOutsite(
-					Instance, 
-					uFileName.Buffer, 
-					TRUE);
+				// Status = PocFindOrCreateStreamContextOutsite(
+				// 	Instance, 
+				// 	uFileName.Buffer, 
+				// 	TRUE);
 
-				if (STATUS_SUCCESS != Status)
-				{
-					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
-					goto EXIT;
-				}
+				// if (STATUS_SUCCESS != Status)
+				// {
+				// 	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
+				// 	goto EXIT;
+				// }
 
 				if (POC_PRIVILEGE_DECRYPT == MessageHeader.Command)
 				{
-					Status = PocReentryToDecrypt(
-						Instance,
-						uFileName.Buffer);
+					// Status = PocReentryToDecrypt(
+					// 	Instance,
+					// 	uFileName.Buffer);
+
+					Status = PocManualEncryptOrDecrypt(uFileName.Buffer, Instance, FALSE);
 
 					if (STATUS_SUCCESS != Status)
 					{
@@ -241,9 +244,10 @@ NTSTATUS PocMessageNotifyCallback(
 				}
 				else
 				{
-					Status = PocReentryToEncrypt(
-						Instance,
-						uFileName.Buffer);
+					// Status = PocReentryToEncrypt(
+					// 	Instance,
+					// 	uFileName.Buffer);
+					Status = PocManualEncryptOrDecrypt(uFileName.Buffer, Instance, TRUE);
 
 					if (STATUS_SUCCESS != Status)
 					{
