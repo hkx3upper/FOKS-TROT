@@ -707,7 +707,7 @@ PocPreCreateOperation (
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( CompletionContext );
 
-    NTSTATUS Status, ProcessType;
+    NTSTATUS Status;
 
     WCHAR FileName[POC_MAX_NAME_LENGTH] = { 0 };
 
@@ -730,7 +730,6 @@ PocPreCreateOperation (
     */
     if (POC_IRRELEVENT_FILE_EXTENSION == Status)
     {
-        ProcessType = PocGetProcessType(Data);
 
         if (PocFindOrCreateStreamContextOutsite(
             Data->Iopb->TargetInstance,
@@ -993,7 +992,7 @@ PocPostCreateOperationWhenSafe(
     * 应该以DataSectionObject是否创建为准
     */
     if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
-        (FILE_READ_DATA | FILE_READ_ATTRIBUTES | FILE_READ_EA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
+        (FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA)) &&
         POC_IS_AUTHORIZED_PROCESS != ProcessType)
     {
 
@@ -1056,7 +1055,7 @@ PocPostCreateOperationWhenSafe(
         }
 
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n"));
+        //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n"));
 
     }
 
