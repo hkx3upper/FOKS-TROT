@@ -920,6 +920,22 @@ PocPostCreateOperationWhenSafe(
     }
 
 
+    if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess, (FILE_READ_DATA)) &&
+        POC_IS_AUTHORIZED_PROCESS != ProcessType)
+    {
+        if (NULL == StreamContext->FlushFileObject)
+        {
+            Status = PocInitFlushFileObject(
+                StreamContext->FileName,
+                &StreamContext->FlushFileObject);
+        }
+
+        Status = PocFlushOriginalCache(
+            FltObjects->Instance,
+            StreamContext->FileName);
+    }
+
+
     /*
     * 判断是否有加密标识尾的地方
     * 或者如果加密标识尾内的FileName错了，标记一下，在PostClose会更新
@@ -999,27 +1015,6 @@ PocPostCreateOperationWhenSafe(
         /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
             ("\n%s->SectionObjectPointers operation enter Process = %ws File = %ws.\n",
                 __FUNCTION__, ProcessName, FileName));*/
-
-        /*
-        * 刷一下明文缓冲，保持获取到的密文是最新的
-        */
-        if (FlagOn(Data->Iopb->Parameters.Create.SecurityContext->DesiredAccess,
-            (FILE_READ_DATA)))
-        {
-            Status = PocFlushOriginalCache(
-                FltObjects->Instance,
-                StreamContext->FileName);
-
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFlushOriginalCache failed. Status = 0x%x\n", __FUNCTION__, Status));
-            }
-            else
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\n%s->PocFlushOriginalCache %ws success.\n", __FUNCTION__, StreamContext->FileName));
-            }
-        }
-
 
         if (NULL == StreamContext->ShadowSectionObjectPointers->DataSectionObject)
         {
