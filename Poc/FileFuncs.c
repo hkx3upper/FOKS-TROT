@@ -1864,7 +1864,7 @@ NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
             Status = PocGetVolumeSectorSize(Instance, &volume_sector_size);
             if (!NT_SUCCESS(Status))
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocGetVolumeSectorSize failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocGetVolumeSectorSize failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
                 __leave;
             }
         }
@@ -1881,7 +1881,7 @@ NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
                 NULL);
             if (!NT_SUCCESS(Status))
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltQueryInformationFile failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltQueryInformationFile failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
                 __leave;
             }
             file_size = info.EndOfFile; // 当前的文件大小可能包含了文件标识尾
@@ -1897,7 +1897,7 @@ NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
             if (read_buffer == NULL)
             {
                 Status = STATUS_INSUFFICIENT_RESOURCES;
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltAllocatePoolAlignedWithTag failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltAllocatePoolAlignedWithTag failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
                 __leave;
             }
         }
@@ -1929,7 +1929,7 @@ NTSTATUS PocIsFileUnderControl(_In_ PFLT_INSTANCE Instance,
 
                 if (!NT_SUCCESS(Status))
                 {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltReadFileEx failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+                    // PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltReadFileEx failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
                     __leave;
                 }
 
