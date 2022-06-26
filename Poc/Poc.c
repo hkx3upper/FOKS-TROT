@@ -751,20 +751,7 @@ PocPostCreateOperation(
         goto EXIT;
     }
 
-    Status = PocBypassIrrelevantBy_PathAndExtension(
-        Data);
-    if (POC_IRRELEVENT_FILE_EXTENSION == Status)
-    {
-        Status = PocIsFileUnderControl(FltObjects->Instance, FltObjects->FileObject);
-        if (STATUS_SUCCESS == Status)
-        {
-        }
-        else
-        {//既不是 机密文件夹下的机密拓展名的文件，也不存在文件标识尾，则不进行处理
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
-            goto EXIT;
-        }
-    }
+
    
     if (!FltDoCompletionProcessingWhenSafe(Data,
         FltObjects,
@@ -809,23 +796,62 @@ PocPostCreateOperationWhenSafe(
 
     ULONG CreateDisposition = 0;
 
+    Status = PocBypassIrrelevantBy_PathAndExtension(
+        Data);
+    if (POC_IRRELEVENT_FILE_EXTENSION == Status)
+    {//不是机密文件夹下的机密后缀名文件
+        Status = PocFindOrCreateStreamContext(
+            Data->Iopb->TargetInstance,
+            Data->Iopb->TargetFileObject,
+            FALSE,
+            &StreamContext,
+            &ContextCreated);
+        if(STATUS_SUCCESS != Status)
+        {//没有找到 StreamContext
+            Status = PocIsFileUnderControl(FltObjects->Instance, FltObjects->FileObject);
+            if (STATUS_SUCCESS != Status)
+            {
+                //既不是 机密文件夹下的机密拓展名的文件，也没有已经创建好的 StreamContext 也不存在文件标识尾，则不进行处理
+                Status = FLT_POSTOP_FINISHED_PROCESSING;
+                goto EXIT;
+            }
+            else
+            {
+                // 找到了文件标识尾，需要对文件进行控制
+                //do nothing
+            }
+        }
+        else
+        {//找到了StreamContext
+            //do nothing
+        }
+    }
+    else
+    {
+        // 机密文件夹下的机密后缀名文件
+        // do nothing
+    }
+
     /*
     * 创建StreamContext，这也是驱动唯二可以创建StreamContext的地方之一，
     * 其他地方都是查找
     */
-    Status = PocFindOrCreateStreamContext(
+   if(NULL == StreamContext)//上文中有可能已经找到了StreamContext
+    {
+        Status = PocFindOrCreateStreamContext(
         Data->Iopb->TargetInstance,
         Data->Iopb->TargetFileObject,
         TRUE,
         &StreamContext,
         &ContextCreated);
 
-    if (STATUS_SUCCESS != Status)
-    {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
-            __FUNCTION__, Status));
-        Status = FLT_POSTOP_FINISHED_PROCESSING;
-        goto EXIT;
+        if (STATUS_SUCCESS != Status)
+        {
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContext failed. Status = 0x%x.\n",
+                __FUNCTION__, Status));
+            Status = FLT_POSTOP_FINISHED_PROCESSING;
+            goto EXIT;
+        }
     }
 
 
