@@ -317,6 +317,15 @@ PocPreSetInformationOperation(
 
             FltSetCallbackDataDirty(Data);
         }
+        else if (0 == Info->EndOfFile.QuadPart)
+        {
+            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+            StreamContext->FileSize = Info->EndOfFile.QuadPart;
+            StreamContext->IsCipherText = FALSE;
+
+            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        }
 
         break;
     }
@@ -342,6 +351,15 @@ PocPreSetInformationOperation(
                 Info->EndOfFile.QuadPart));*/
 
             FltSetCallbackDataDirty(Data);
+        }
+        else if (0 == Info->EndOfFile.QuadPart)
+        {
+            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+            StreamContext->FileSize = Info->EndOfFile.QuadPart;
+            StreamContext->IsCipherText = FALSE;
+
+            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
         }
 
         if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
