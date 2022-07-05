@@ -12,7 +12,7 @@ typedef struct _POC_ENCRYPTION_TAILER
 	BOOLEAN IsCipherText;
 	CHAR EncryptionAlgorithmType[32];
 	CHAR KeyAndCiphertextHash[32];
-
+	CHAR CipherText[16];//用于记录文件大小不足一个 AES_BLOCK_SIZE 时多余的密文
 }POC_ENCRYPTION_TAILER, * PPOC_ENCRYPTION_TAILER;
 
 extern POC_ENCRYPTION_TAILER EncryptionTailer;

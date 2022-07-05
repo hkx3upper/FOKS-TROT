@@ -1082,7 +1082,7 @@ PocPreCloseOperation(
 
     BOOLEAN ContextCreated = FALSE;
 
-    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    //WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
 
     Status = PocFindOrCreateStreamContext(
         Data->Iopb->TargetInstance, 
@@ -1125,7 +1125,7 @@ PocPreCloseOperation(
         goto EXIT;
     }
 
-    Status = PocGetProcessName(Data, ProcessName);
+    //Status = PocGetProcessName(Data, ProcessName);
 
 
     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("\nPocPreCloseOperation->enter ProcessName = %ws File = %ws StreamContext->Flag = 0x%x.\n",

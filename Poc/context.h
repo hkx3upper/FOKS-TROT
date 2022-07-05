@@ -78,6 +78,11 @@ typedef struct _POC_STREAM_CONTEXT
 
     PERESOURCE Resource;
 
+    //write
+    LONGLONG original_write_byteoffset;
+    ULONG original_write_length;
+    CHAR cipher_buffer[16];
+
 } POC_STREAM_CONTEXT, * PPOC_STREAM_CONTEXT;
 
 #define POC_STREAM_CONTEXT_SIZE         sizeof(POC_STREAM_CONTEXT)

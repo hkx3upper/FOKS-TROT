@@ -378,11 +378,20 @@ NTSTATUS PocCreateFileForEncTailer(
 
 
 EXIT:
+
+    if ((POC_FILE_HAS_ENCRYPTION_TAILER == Status ||
+        POC_TAILER_WRONG_FILE_NAME == Status) && (StreamContext->FileSize & 0x0f) && OutReadBuffer)
+    {
+        for (int i = 0; i < AES_BLOCK_SIZE; i++)
+            StreamContext->cipher_buffer[i] = ((PPOC_ENCRYPTION_TAILER)OutReadBuffer)->CipherText[i];
+    }
+
     if (NULL != OutReadBuffer)
     {
         FltFreePoolAlignedWithTag(FltObjects->Instance, OutReadBuffer, READ_BUFFER_TAG);
         OutReadBuffer = NULL;
     }
+
 
     return Status;
 }
@@ -499,7 +508,10 @@ NTSTATUS PocAppendEncTailerToFile(
     ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileSize = StreamContext->FileSize;;
     ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->IsCipherText = StreamContext->IsCipherText;
     RtlMoveMemory(((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
-
+    for(int i = 0; i < AES_BLOCK_SIZE; i++)
+    {
+        ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->CipherText[i] = StreamContext->cipher_buffer[i];
+    }
 
     Status = FltWriteFileEx(
         Instance,
@@ -1470,7 +1482,6 @@ VOID PocAppendEncTailerThread(
 
         Continue = FALSE;
 
-        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 
 
         for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
@@ -1503,6 +1514,7 @@ VOID PocAppendEncTailerThread(
         {
             break;
         }
+        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 
     }
 

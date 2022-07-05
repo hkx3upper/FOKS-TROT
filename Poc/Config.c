@@ -57,6 +57,7 @@ const PWCHAR secure_process[] = {
 	* PocUserPanel必须是授权进程，默认安装路径
 	*/
 	L"C:\\Program Files\\hkx3upper\\PocUserPanel.exe",
+	L"C:\\Users\\wangzhankun\\Desktop\\test\\TEST.exe",
 	
 	/*
 	* 用户程序

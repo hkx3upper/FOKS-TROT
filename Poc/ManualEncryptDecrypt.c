@@ -281,17 +281,35 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 						}
 
 						bytesWrite = ROUND_TO_SIZE(bytesWrite, AES_BLOCK_SIZE);
+						if(bytesRead & 0x0f)//如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b,
+						{
+							ULONG offset = bytesRead - (bytesRead & 0x0f);// 找到不足一个AES_BLOCK_SIZE的位置。 (bytesRead & 0x0f)等价于 bytesRead % 16. 如果bytesRead 不是16的倍数，那么一定是文件最后一次读取出的数据
+							for(int i = 0; i < AES_BLOCK_SIZE; i++)
+							{
+								encryption_tailer->CipherText[i] = write_buffer[offset + i];
+							}
+							bytesWrite = bytesRead;//明文多少就写入多少，多余的密文记录到文件标识尾中
+						}
 					}
 					else
 					{
 						// 由于此时 bytesRead 是根据 file_size 进行了截断
 
+						if(bytesRead & 0x0f)//如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b, 
+						{
+							ULONG offset = bytesRead - (bytesRead & 0x0f);
+							for(int i = 0; i < AES_BLOCK_SIZE; i++)
+							{
+								write_buffer[offset + i] = encryption_tailer->CipherText[i];//从文件标识尾中提取密文
+							}
+						}
 						Status = PocManualDecrypt(read_buffer, bytesRead, write_buffer, &bytesWrite, file_size.QuadPart);
 						if (!NT_SUCCESS(Status))
 						{
 							PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocManualDecrypt failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
 							__leave;
 						}
+						bytesWrite = bytesRead;
 					}
 				}
 

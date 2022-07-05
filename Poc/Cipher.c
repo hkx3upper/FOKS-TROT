@@ -625,7 +625,11 @@ NTSTATUS PocManualDecrypt(PCHAR read_buffer,
 		// bytesRead 做了特殊处理，保证 bytesRead > AES_BLOCK_SIZE，可以做密文挪用的解密操作
 
 		// 需要进行密文挪用，且此时的数据一定是最后一次读取到的数据
-		Status = PocAesECBDecrypt_CiphertextStealing(cipher_text, bytesRead, plain_text);
+		// Status = PocAesECBDecrypt_CiphertextStealing(cipher_text, bytesRead, plain_text);
+		bytesRead = ROUND_TO_SIZE(bytesRead, AES_BLOCK_SIZE);
+		// *bytesWrite = ROUND_TO_SIZE(*bytesWrite, AES_BLOCK_SIZE);
+		Status = PocAesECBDecrypt(cipher_text, bytesRead, plain_text, bytesWrite);
+
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBDecrypt_CiphertextStealing failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
@@ -694,7 +698,11 @@ NTSTATUS PocManualEncrypt(PCHAR read_buffer,
 		// bytesRead 做了特殊处理，保证 bytesRead > AES_BLOCK_SIZE，可以做密文挪用
 
 		// 需要进行密文挪用，且此时的数据一定是最后一次读取到的数据
-		Status = PocAesECBEncrypt_CiphertextStealing(plain_text, bytesRead, cipher_text);
+		// Status = PocAesECBEncrypt_CiphertextStealing(plain_text, bytesRead, cipher_text);
+		bytesRead = ROUND_TO_SIZE(bytesRead, AES_BLOCK_SIZE);
+		// *bytesWrite = ROUND_TO_SIZE(*bytesWrite, AES_BLOCK_SIZE);
+		Status = PocAesECBEncrypt(plain_text, bytesRead, cipher_text, bytesWrite);
+
 		if (STATUS_SUCCESS != Status)
 		{
 			PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocAesECBEncrypt_CiphertextStealing failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));

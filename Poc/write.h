@@ -9,7 +9,7 @@ typedef struct _POC_SWAP_BUFFER_CONTEXT
     PMDL NewMdl;
     PPOC_STREAM_CONTEXT StreamContext;
     ULONG OriginalLength;
-
+    LARGE_INTEGER byte_offset;
     CHAR FileName[POC_MAX_NAME_LENGTH];
 
     BOOLEAN IsCacheExtend;

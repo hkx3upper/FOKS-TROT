@@ -706,7 +706,7 @@ NTSTATUS PocPostReadDecrypt(
 */
 {
 
-    NTSTATUS Status;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     ASSERT(Context);
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = *Context;
@@ -714,7 +714,7 @@ NTSTATUS PocPostReadDecrypt(
     PPOC_STREAM_CONTEXT StreamContext = SwapBufferContext->StreamContext;
     ASSERT(StreamContext);
 
-    LONGLONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.QuadPart;
+    //LONGLONG StartingVbo = Data->Iopb->Parameters.Read.ByteOffset.QuadPart;
 
     /*
     * This is set to a request-dependent value.
@@ -726,248 +726,271 @@ NTSTATUS PocPostReadDecrypt(
     LONGLONG LengthReturned = Data->IoStatus.Information;
     LONGLONG FileSize = StreamContext->FileSize;
 
-    LARGE_INTEGER ByteOffset = { 0 };
-    ULONG ReadLength = 0;
+    //LARGE_INTEGER ByteOffset = { 0 };
+    //ULONG ReadLength = 0;
     PCHAR outReadBuffer = NULL;
-    ULONG BytesRead = 0;
+    //ULONG BytesRead = 0;
 
     PCHAR TempNewBuffer = NULL;
     PCHAR TempOrigBuffer = NULL;
 
     PVOID NewBuffer = SwapBufferContext->NewBuffer;
 
-    PPOC_VOLUME_CONTEXT VolumeContext = NULL;
+    //PPOC_VOLUME_CONTEXT VolumeContext = NULL;
 
 
     try
     {
-
-        if (FileSize < AES_BLOCK_SIZE)
+        // 事实上，即使是制定了 NO_BUFFERING，StartingVbo也一定是对齐的
+        // LengthReturned 只要在读到文件末尾的时候才有可能是不对齐的
+        if(LengthReturned)
         {
-            /*
-            * 文件小于一个块
-            */
-
-            LengthReturned = AES_BLOCK_SIZE;
-
-            Status = PocAesECBDecrypt(NewBuffer, (ULONG)LengthReturned, OrigBuffer, &(ULONG)LengthReturned);
-
+            if (LengthReturned & 0x0f)
+            {
+                LONGLONG offset = LengthReturned - (LengthReturned & 0x0f);
+                for (int i = 0; i < AES_BLOCK_SIZE; i++)
+                {
+                    ((CHAR*)NewBuffer)[offset + i] = StreamContext->cipher_buffer[i];
+                }
+            }
+            ULONG bytesDecrypt = ROUND_TO_SIZE(LengthReturned, AES_BLOCK_SIZE);
+            Status = PocManualDecrypt(NewBuffer, (ULONG)LengthReturned, OrigBuffer, &bytesDecrypt, FileSize);
             if (STATUS_SUCCESS != Status)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt1 failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt error, Status = 0x%x\n", __FUNCTION__, __LINE__, Status));
+            }
+            else
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt Success!\n", __FUNCTION__, __LINE__));
             }
         }
-        else if ((FileSize > StartingVbo + LengthReturned) &&
-            (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
-        {
-            PAGED_CODE();
-            /*
-            * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
-            * 最后一次读的数据小于一个块的情况下，现在在倒数第二个块做一下处理
-            */
 
-            ByteOffset.QuadPart = StartingVbo + LengthReturned;
-            ReadLength = AES_BLOCK_SIZE;
+        // if (FileSize < AES_BLOCK_SIZE)
+        // {
+        //     /*
+        //     * 文件小于一个块
+        //     */
 
-            Status = PocReadFileNoCache(
-                FltObjects->Instance,
-                FltObjects->Volume,
-                StreamContext->FileName,
-                ByteOffset,
-                ReadLength,
-                &outReadBuffer,
-                &BytesRead);
+        //     LengthReturned = AES_BLOCK_SIZE;
 
-            if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileNoCache1 failed. Status = 0x%x\n", __FUNCTION__, Status));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     Status = PocAesECBDecrypt(NewBuffer, (ULONG)LengthReturned, OrigBuffer, &(ULONG)LengthReturned);
 
-            BytesRead = (ULONG)(FileSize - (StartingVbo + LengthReturned));
+        //     if (STATUS_SUCCESS != Status)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt1 failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
+        // }
+        // else if ((FileSize > StartingVbo + LengthReturned) &&
+        //     (FileSize - (StartingVbo + LengthReturned) < AES_BLOCK_SIZE))
+        // {
+        //     PAGED_CODE();
+        //     /*
+        //     * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
+        //     * 最后一次读的数据小于一个块的情况下，现在在倒数第二个块做一下处理
+        //     */
 
-            TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
+        //     ByteOffset.QuadPart = StartingVbo + LengthReturned;
+        //     ReadLength = AES_BLOCK_SIZE;
 
-            if (NULL == TempNewBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempNewBuffer failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     Status = PocReadFileNoCache(
+        //         FltObjects->Instance,
+        //         FltObjects->Volume,
+        //         StreamContext->FileName,
+        //         ByteOffset,
+        //         ReadLength,
+        //         &outReadBuffer,
+        //         &BytesRead);
 
-            RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
+        //     if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileNoCache1 failed. Status = 0x%x\n", __FUNCTION__, Status));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
+        //     BytesRead = (ULONG)(FileSize - (StartingVbo + LengthReturned));
 
-            if (NULL == TempOrigBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempOrigBuffer failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
-            RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
+        //     if (NULL == TempNewBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempNewBuffer failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            RtlMoveMemory(TempNewBuffer, NewBuffer, LengthReturned);
-            RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, BytesRead);
+        //     RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-            Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, (ULONG)(LengthReturned + BytesRead), TempOrigBuffer);
+        //     TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing1 failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     if (NULL == TempOrigBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempOrigBuffer failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            RtlMoveMemory(OrigBuffer, TempOrigBuffer, LengthReturned);
-        }
-        else if (FileSize > AES_BLOCK_SIZE &&
-            LengthReturned < AES_BLOCK_SIZE)
-        {
-            PAGED_CODE();
+        //     RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-            /*
-            * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
-            * 最后一次读的数据小于一个块时
-            */
+        //     RtlMoveMemory(TempNewBuffer, NewBuffer, LengthReturned);
+        //     RtlMoveMemory(TempNewBuffer + LengthReturned, outReadBuffer, BytesRead);
 
-            Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, (PFLT_CONTEXT*)&VolumeContext);
+        //     Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, (ULONG)(LengthReturned + BytesRead), TempOrigBuffer);
 
-            if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x\n", __FUNCTION__, Status));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     if (STATUS_SUCCESS != Status)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing1 failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            ByteOffset.QuadPart = StartingVbo - VolumeContext->SectorSize;
-            ReadLength = VolumeContext->SectorSize;
+        //     RtlMoveMemory(OrigBuffer, TempOrigBuffer, LengthReturned);
+        // }
+        // else if (FileSize > AES_BLOCK_SIZE &&
+        //     LengthReturned < AES_BLOCK_SIZE)
+        // {
+        //     PAGED_CODE();
 
-            if (NULL != VolumeContext)
-            {
-                FltReleaseContext(VolumeContext);
-                VolumeContext = NULL;
-            }
+        //     /*
+        //     * 当文件大于一个块，Cache Manager将数据分多次读入缓冲，或者其他以NonCachedIo形式
+        //     * 最后一次读的数据小于一个块时
+        //     */
 
-            Status = PocReadFileNoCache(
-                FltObjects->Instance,
-                FltObjects->Volume,
-                StreamContext->FileName,
-                ByteOffset,
-                ReadLength,
-                &outReadBuffer,
-                &BytesRead);
+        //     Status = FltGetVolumeContext(FltObjects->Filter, FltObjects->Volume, (PFLT_CONTEXT*)&VolumeContext);
 
-            if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileNoCache2 failed. Status = 0x%x\n", __FUNCTION__, Status));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x\n", __FUNCTION__, Status));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            ASSERT(ReadLength == BytesRead);
+        //     ByteOffset.QuadPart = StartingVbo - VolumeContext->SectorSize;
+        //     ReadLength = VolumeContext->SectorSize;
 
-            TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
+        //     if (NULL != VolumeContext)
+        //     {
+        //         FltReleaseContext(VolumeContext);
+        //         VolumeContext = NULL;
+        //     }
 
-            if (NULL == TempNewBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempNewBuffer failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     Status = PocReadFileNoCache(
+        //         FltObjects->Instance,
+        //         FltObjects->Volume,
+        //         StreamContext->FileName,
+        //         ByteOffset,
+        //         ReadLength,
+        //         &outReadBuffer,
+        //         &BytesRead);
 
-            RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
+        //     if (!NT_SUCCESS(Status) || NULL == outReadBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocReadFileNoCache2 failed. Status = 0x%x\n", __FUNCTION__, Status));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
+        //     ASSERT(ReadLength == BytesRead);
 
-            if (NULL == TempOrigBuffer)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempOrigBuffer failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     TempNewBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
-            RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
+        //     if (NULL == TempNewBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempNewBuffer failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            RtlMoveMemory(TempNewBuffer, outReadBuffer, BytesRead);
-            RtlMoveMemory(TempNewBuffer + BytesRead, NewBuffer, LengthReturned);
+        //     RtlZeroMemory(TempNewBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-            Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, (ULONG)(LengthReturned + BytesRead), TempOrigBuffer);
+        //     TempOrigBuffer = (PCHAR)ExAllocatePoolWithTag(NonPagedPool, (SIZE_T)LengthReturned + BytesRead, READ_BUFFER_TAG);
 
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing2 failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
+        //     if (NULL == TempOrigBuffer)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->ExAllocatePoolWithTag TempOrigBuffer failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
 
-            RtlMoveMemory(OrigBuffer, TempOrigBuffer + BytesRead, LengthReturned);
-        }
-        else if (LengthReturned % AES_BLOCK_SIZE != 0)
-        {
-            /*
-            * 当需要读的数据大于一个块时，且和块大小不对齐时，这里用密文挪用的方式，不需要修改文件大小
-            */
+        //     RtlZeroMemory(TempOrigBuffer, (SIZE_T)LengthReturned + BytesRead);
 
-            Status = PocAesECBDecrypt_CiphertextStealing((PCHAR)NewBuffer, (ULONG)LengthReturned, (PCHAR)OrigBuffer);
+        //     RtlMoveMemory(TempNewBuffer, outReadBuffer, BytesRead);
+        //     RtlMoveMemory(TempNewBuffer + BytesRead, NewBuffer, LengthReturned);
 
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing2 failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
-        }
-        else
-        {
-            /*
-            * 当需要读的数据本身就和块大小对齐时，直接解密
-            */
-            Status = PocAesECBDecrypt((PCHAR)NewBuffer, (ULONG)LengthReturned, (PCHAR)OrigBuffer, &(ULONG)LengthReturned);
+        //     Status = PocAesECBDecrypt_CiphertextStealing(TempNewBuffer, (ULONG)(LengthReturned + BytesRead), TempOrigBuffer);
 
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt failed.\n", __FUNCTION__));
-                Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
-                Data->IoStatus.Information = 0;
-                Status = FLT_POSTOP_FINISHED_PROCESSING;
-                __leave;
-            }
-        }
+        //     if (STATUS_SUCCESS != Status)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing2 failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
+
+        //     RtlMoveMemory(OrigBuffer, TempOrigBuffer + BytesRead, LengthReturned);
+        // }
+        // else if (LengthReturned % AES_BLOCK_SIZE != 0)
+        // {
+        //     /*
+        //     * 当需要读的数据大于一个块时，且和块大小不对齐时，这里用密文挪用的方式，不需要修改文件大小
+        //     */
+
+        //     Status = PocAesECBDecrypt_CiphertextStealing((PCHAR)NewBuffer, (ULONG)LengthReturned, (PCHAR)OrigBuffer);
+
+        //     if (STATUS_SUCCESS != Status)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt_CiphertextStealing2 failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
+        // }
+        // else
+        // {
+        //     /*
+        //     * 当需要读的数据本身就和块大小对齐时，直接解密
+        //     */
+        //     Status = PocAesECBDecrypt((PCHAR)NewBuffer, (ULONG)LengthReturned, (PCHAR)OrigBuffer, &(ULONG)LengthReturned);
+
+        //     if (STATUS_SUCCESS != Status)
+        //     {
+        //         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAesECBDecrypt failed.\n", __FUNCTION__));
+        //         Data->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        //         Data->IoStatus.Information = 0;
+        //         Status = FLT_POSTOP_FINISHED_PROCESSING;
+        //         __leave;
+        //     }
+        // }
 
         /*
         * 此处bug已解决，原因如下
         * However, Unicode format codes (%wc and %ws) can be used only at IRQL=PASSIVE_LEVEL. 
         */
 
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Decrypt success. StartingVbo = %I64d Length = %d File = %s.\n\n",
-            __FUNCTION__,
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d Decrypt success. StartingVbo = %I64d Length = %d File = %s.\n\n",
+            __FUNCTION__,__LINE__,
             Data->Iopb->Parameters.Read.ByteOffset.QuadPart,
             (ULONG)LengthReturned,
             SwapBufferContext->FileName));
