@@ -522,7 +522,7 @@ PocPostWriteOperation(
 
 
     if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) &&
-        TRUE != StreamContext->LessThanAesBlockSize)
+        (TRUE != StreamContext->LessThanAesBlockSize || ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart > AES_BLOCK_SIZE))
     {
         /*
         * 记录文件的明文大小，小于16个字节的StreamContext->FileSize已经在其他处更新过了，
