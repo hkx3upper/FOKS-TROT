@@ -396,6 +396,15 @@ PocPreSetInformationOperation(
         
         break;
     }
+    case FileDispositionInformation:
+    {
+        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+        StreamContext->FileSize = 0;
+        StreamContext->IsCipherText = FALSE;
+
+        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+    }
 
     }
 
