@@ -34,13 +34,15 @@
 10.PostClose时使用单独的线程，等待操作该文件的所有授权进程结束以后，
   再重入加密或写入文件标识尾，解决了docx类文件的死锁问题；  
 11.将ULONG改成LONGLONG，原则上可以支持4GB以上文件（目前特权加密和特权解密暂不支持4GB以上文件，  
-  而且在内存有限的情况下，特权解密有可能会因非分页内存的缺少而失败） 
+  而且在内存有限的情况下，特权解密有可能会因非分页内存的缺少而失败，不想写了，这里可以放循环里读写大文件） 
 12.用WPF写了用户界面，可以配置授权进程，需管控的文件类型，机密文件夹，以及特权加密、解密文件；  
   使用InstallShield打包安装包；  
 13.增加进程权限：备份权限进程，比如VMTools和explorer.exe，可以将完整的密文文件从虚拟机中拷贝出，或者  
   从机密文件夹向外拷贝密文文件，和粘贴文件到机密文件夹（未加密的自动加密，已加密的重复加密后自动解密一次）    
 14.在Write加密以后，ObDereferenceObject一个之前建好的FileObject，触发Close创建线程准备写入尾或重入加密；  
-15.允许驱动特权加密或解密机密文件夹以外的文件；驱动卸载时清除明文缓冲，防止明文泄露。  
+15.允许驱动特权加密或解密机密文件夹以外的文件；驱动卸载时清除明文缓冲，防止明文泄露；  
+16.WRITE_THROUGH时，Ntfs并不会在PagingIo之前更新Fcb->FileSize，它使用TopLevelIrpContext + 184截断  
+  PagingIo的数据，在CachedIo返回时更新该FileSize，所以这里使用SC->WriteThroughFileSize暂时保存FileSize。    
 ```
 ## Build & Installation：
 1.建议在Windows 10 x64，NTFS环境运行  
@@ -98,13 +100,15 @@ rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 路径\Poc.inf
 ```
 用notepad.exe（默认配置为授权进程）写入txt文件一些数据，
 然后使用wordpad.exe（默认配置为非授权进程）打开，只能看到杂乱的数据，说明加密成功。  
+P.S. 文件加密以后，即使关闭驱动（不重启电脑），记事本也是看到的明文（因为有缓冲存在）；
+加密标识尾只有在关机重启并不开驱动的情况下才能看到。  
 ```
 ![bandicam-2022-06-07-14-17-43-706](https://user-images.githubusercontent.com/41336794/172311235-59075006-aa5e-42f1-a6c4-c976785e6f5a.gif)  
   
 11.使用编译好的或安装包中的PocUserPanel配置各种参数  
 </br><img src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
 ## Unfixed：
-授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，这样来加密授权驱动写入的所有中间文件。
+授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：
