@@ -1470,9 +1470,6 @@ VOID PocAppendEncTailerThread(
 
         Continue = FALSE;
 
-        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
-
-
         for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
         {
             if (NULL != StreamContext->ProcessId[i])
@@ -1504,6 +1501,7 @@ VOID PocAppendEncTailerThread(
             break;
         }
 
+        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
     }
 
 
