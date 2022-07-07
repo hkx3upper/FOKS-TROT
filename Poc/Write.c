@@ -32,7 +32,6 @@ PocPreWriteOperation(
     PMDL NewMdl = NULL;
     LONGLONG NewBufferLength = 0;
 
-    PFSRTL_ADVANCED_FCB_HEADER AdvancedFcbHeader = NULL;
     LONGLONG FileSize = 0, StartingVbo = 0, ByteCount = 0, LengthReturned = 0;
 
     PPOC_VOLUME_CONTEXT VolumeContext = NULL;
@@ -43,8 +42,7 @@ PocPreWriteOperation(
     ByteCount = Data->Iopb->Parameters.Write.Length;
     StartingVbo = Data->Iopb->Parameters.Write.ByteOffset.QuadPart;
 
-    AdvancedFcbHeader = FltObjects->FileObject->FsContext;
-    FileSize = AdvancedFcbHeader->FileSize.QuadPart;
+    FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
 
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
@@ -196,6 +194,22 @@ PocPreWriteOperation(
 
             }
         }
+        else if (AES_BLOCK_SIZE == FileSize)
+        {
+            /*
+            * PostWrite更新CurrentByteOffset
+            */
+            if (StartingVbo + Data->Iopb->Parameters.Write.Length < AES_BLOCK_SIZE)
+            {
+                ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+                StreamContext->FileSize = StartingVbo + Data->Iopb->Parameters.Write.Length;
+                StreamContext->LessThanAesBlockSize = TRUE;
+
+                ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+            }
+        }
+
     }
 
 
@@ -628,9 +642,21 @@ PocPostWriteOperation(
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     }
 
+    if (!BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO) &&
+        ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart <= AES_BLOCK_SIZE)
+    {
+        /*
+        * WriteFile之类的函数，
+        * This function writes data to a file, starting at the position indicated by the file pointer. 
+        * After the write operation has been completed, 
+        * the file pointer is adjusted by the number of bytes written.
+        */
+        FltObjects->FileObject->CurrentByteOffset.QuadPart = StreamContext->FileSize;
+    }
 
     if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) &&
-        TRUE != StreamContext->LessThanAesBlockSize)
+        (TRUE != StreamContext->LessThanAesBlockSize || 
+            ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart > AES_BLOCK_SIZE))
     {
         /*
         * 记录文件的明文大小，小于16个字节的StreamContext->FileSize已经在其他处更新过了，
