@@ -344,11 +344,11 @@ PocPreSetInformationOperation(
 
             ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
                 __FUNCTION__,
                 StreamContext->FileName,
                 StreamContext->FileSize,
-                Info->EndOfFile.QuadPart));*/
+                Info->EndOfFile.QuadPart));
 
             FltSetCallbackDataDirty(Data);
         }

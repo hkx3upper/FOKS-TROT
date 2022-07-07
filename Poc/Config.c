@@ -63,6 +63,7 @@ const PWCHAR secure_process[] = {
 	*/
 	L"C:\\Windows\\System32\\notepad.exe",
 	L"C:\\Desktop\\npp.7.8.1.bin\\notepad++.exe",
+	L"C:\\Desktop\\Test.exe",
 
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wps.exe",
 	L"C:\\Users\\hkx3upper\\AppData\\Local\\Kingsoft\\WPS Office\\11.1.0.11365\\office6\\wpp.exe",

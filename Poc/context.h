@@ -17,7 +17,7 @@ typedef struct _POC_PAGE_TEMP_BUFFER
 //  Stream context data structure
 //
 
-typedef struct _POC_STREAM_CONTEXT 
+typedef struct _POC_STREAM_CONTEXT
 {
 
     ULONG Flag;
@@ -33,6 +33,14 @@ typedef struct _POC_STREAM_CONTEXT
     */
     LONGLONG FileSize;
     BOOLEAN LessThanAesBlockSize;
+
+
+    /*
+    * 在Ntfs 10.0.17763.2686中，WRITE_THROUGH标识，并不会在PagingIo之前更新Fcb->FileSize，
+    * 也就是，它在PagingIo时，使用别的变量截断数据（TopLevelIrpContext + 184），
+    * 我们在这里使用WriteThroughFileSize替代Fcb->FileSize
+    */
+    LONGLONG WriteThroughFileSize;
 
     /*
     * 明文缓冲，密文缓冲以及密文缓冲所属的FileObject

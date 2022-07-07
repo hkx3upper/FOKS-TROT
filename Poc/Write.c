@@ -41,8 +41,6 @@ PocPreWriteOperation(
     ByteCount = Data->Iopb->Parameters.Write.Length;
     StartingVbo = Data->Iopb->Parameters.Write.ByteOffset.QuadPart;
 
-    FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
-
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
 
@@ -89,6 +87,16 @@ PocPreWriteOperation(
     }
 
     Status = PocGetProcessName(Data, ProcessName);
+
+
+    if (PagingIo && 0 != StreamContext->WriteThroughFileSize)
+    {
+        FileSize = StreamContext->WriteThroughFileSize;
+    }
+    else
+    {
+        FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+    }
 
 
     //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
@@ -209,6 +217,13 @@ PocPreWriteOperation(
             }
         }
 
+        /*
+        * 在CachedIo WRITE_THROUGH时暂存，在PagingIo时取出，替换Fcb->FileSize
+        */
+        if (FlagOn(FltObjects->FileObject->Flags, FO_WRITE_THROUGH))
+        {
+            StreamContext->WriteThroughFileSize = StartingVbo + Data->Iopb->Parameters.Write.Length;
+        }
     }
 
 
@@ -625,8 +640,20 @@ PocPostWriteOperation(
     PPOC_SWAP_BUFFER_CONTEXT SwapBufferContext = NULL;
     PPOC_STREAM_CONTEXT StreamContext = NULL;
 
+    LONGLONG FileSize = 0;
+
     SwapBufferContext = CompletionContext;
     StreamContext = SwapBufferContext->StreamContext;
+
+
+    if (0 != StreamContext->WriteThroughFileSize)
+    {
+        FileSize = StreamContext->WriteThroughFileSize;
+    }
+    else
+    {
+        FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+    }
 
 
     if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE))
@@ -642,7 +669,7 @@ PocPostWriteOperation(
     }
 
     if (!BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO) &&
-        ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart <= AES_BLOCK_SIZE)
+        FileSize <= AES_BLOCK_SIZE)
     {
         /*
         * WriteFile之类的函数，
@@ -655,7 +682,7 @@ PocPostWriteOperation(
 
     if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) &&
         (TRUE != StreamContext->LessThanAesBlockSize || 
-            ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart > AES_BLOCK_SIZE))
+            FileSize > AES_BLOCK_SIZE))
     {
         /*
         * 记录文件的明文大小，小于16个字节的StreamContext->FileSize已经在其他处更新过了，
@@ -663,12 +690,12 @@ PocPostWriteOperation(
         */
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-        StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+        StreamContext->FileSize = FileSize;
 
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     }
 
-
+    
     /*
     * 扩展密文缓冲的大小，在PostWrite是因为，我们需要它进入文件系统驱动的Write去扩展AllocationSize等值，
     * 等这些值扩展以后，我们才能增大密文缓冲的大小。
@@ -698,7 +725,7 @@ PocPostWriteOperation(
 
     if (Data->Iopb->Parameters.Write.ByteOffset.QuadPart +
         Data->Iopb->Parameters.Write.Length >=
-        ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart
+        FileSize
         && BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE))
     {
         if (TRUE == StreamContext->IsReEncrypted)
@@ -732,6 +759,12 @@ PocPostWriteOperation(
             ObDereferenceObject(StreamContext->FlushFileObject);
             StreamContext->FlushFileObject = NULL;
         }
+    }
+
+
+    if (FlagOn(FltObjects->FileObject->Flags, FO_WRITE_THROUGH))
+    {
+        StreamContext->WriteThroughFileSize = 0;
     }
 
 
