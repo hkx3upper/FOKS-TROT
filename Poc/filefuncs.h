@@ -61,6 +61,17 @@ NTSTATUS PocReentryToDecrypt(
 
 KSTART_ROUTINE PocAppendEncTailerThread;
 
+/**
+ * @Author: wangzhankun
+ * @Date: 2022-07-07 20:08:14
+ * @LastEditors: wangzhankun
+ * @update: 
+ * @brief 该函数只能在 PostClose 和 PocAppendEncTailerThread 中被调用
+ * @param {IN PPOC_STREAM_CONTEXT} StreamContext
+ * @return STATUS_SUCCESS 如果成功,  STATUS_TOO_MANY_THREADS 如果仍然有授权进程占有该文件; 其它返回值表示失败
+ */
+NTSTATUS PocAppendEncImmediately(IN PPOC_STREAM_CONTEXT StreamContext);
+
 NTSTATUS PocReadFileFromCache(
 	IN PFLT_INSTANCE Instance,
 	IN PFILE_OBJECT FileObject,

@@ -1438,12 +1438,31 @@ EXIT:
     return Status;
 }
 
-
 VOID PocAppendEncTailerThread(
     IN PVOID StartContext)
 {
     PPOC_STREAM_CONTEXT StreamContext = StartContext;
+    NTSTATUS Status = STATUS_SUCCESS;
 
+    LARGE_INTEGER Interval = { 0 };
+    Interval.QuadPart = -30 * 1000 * 1000; //3s
+
+
+    while(TRUE)
+    {
+        Status = PocAppendEncImmediately(StreamContext);
+        if(STATUS_TOO_MANY_THREADS != Status) break;
+        KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+    }
+    if(STATUS_SUCCESS != Status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocAppendEncImmediately failed. Status = 0x%x\n", __FUNCTION__, Status));
+    }
+    PsTerminateSystemThread(Status);
+}
+
+NTSTATUS PocAppendEncImmediately(IN PPOC_STREAM_CONTEXT StreamContext)
+{
     if (NULL == StreamContext ||
         NULL == StreamContext->FileName ||
         NULL == StreamContext->Volume ||
@@ -1451,59 +1470,45 @@ VOID PocAppendEncTailerThread(
     {
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
             ("%s->StreamContext or FileName or Volume or Instance is NULL.\n", __FUNCTION__));
-        return;
+        return STATUS_INVALID_PARAMETER;
     }
 
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    LARGE_INTEGER Interval = { 0 };
-    Interval.QuadPart = -30 * 1000 * 1000; //3s
-
-    BOOLEAN Continue = 0;
 
     /*
     * 这里要遍历一下判断操作该文件的所有授权进程已关闭，
     * 此时可以重入加密或写入文件标识尾，不会有死锁了。
     */
-    while (TRUE)
+
+
+    for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
     {
-
-        Continue = FALSE;
-
-        for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
+        if (NULL != StreamContext->ProcessId[i])
         {
-            if (NULL != StreamContext->ProcessId[i])
-            {
-                
-                /*
-                * 遍历一下链表，如果进程结束，
-                * 链表节点会在PocProcessNotifyRoutineEx函数中被清除掉。
-                */
-                Status = PocFindProcessInfoNodeByPidEx(
-                    StreamContext->ProcessId[i],
-                    NULL,
-                    FALSE,
-                    FALSE);
+            
+            /*
+            * 遍历一下链表，如果进程结束，
+            * 链表节点会在PocProcessNotifyRoutineEx函数中被清除掉。
+            */
+            Status = PocFindProcessInfoNodeByPidEx(
+                StreamContext->ProcessId[i],
+                NULL,
+                FALSE,
+                FALSE);
 
-                if (STATUS_SUCCESS != Status)
-                {
-                    StreamContext->ProcessId[i] = NULL;
-                }
-                else
-                {
-                    Continue = TRUE;
-                }
+            if (STATUS_SUCCESS != Status)
+            {
+                StreamContext->ProcessId[i] = NULL;
+            }
+            else
+            {
+                return STATUS_TOO_MANY_THREADS;//还是有授权进程在控制该文件
             }
         }
-
-        if (!Continue)
-        {
-            break;
-        }
-
-        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
     }
 
+    Status = STATUS_SUCCESS;
 
     /*
     * 添加加密标识尾的地方
@@ -1541,7 +1546,6 @@ VOID PocAppendEncTailerThread(
                 Status,
                 StreamContext->FileName));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1578,7 +1582,6 @@ VOID PocAppendEncTailerThread(
                 __FUNCTION__,
                 Status));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1608,7 +1611,6 @@ VOID PocAppendEncTailerThread(
                 __FUNCTION__,
                 Status));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1634,8 +1636,9 @@ EXIT:
         FltReleaseContext(StreamContext);
         StreamContext = NULL;
     }
-
-    PsTerminateSystemThread(Status);
+    
+    
+    return Status;
 }
 
 
