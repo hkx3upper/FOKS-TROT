@@ -605,7 +605,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
 
             PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                ("%s->CcSetFileSizes chipertext cache map size.\nFile = %ws AllocationSize = %I64d ValidDataLength = %I64d FileSize = %I64d SCM = %d DSO = %d.\n\n",
+                ("%s->CcSetFileSizes chipertext cache map size.File = %ws AllocationSize = %I64d ValidDataLength = %I64d FileSize = %I64d SCM = %d DSO = %d.\n",
                     __FUNCTION__,
                     StreamContext->FileName,
                     ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->AllocationSize.QuadPart,

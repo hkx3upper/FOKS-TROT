@@ -6,7 +6,6 @@
 #include "process.h"
 #include "context.h"
 
-
 FLT_PREOP_CALLBACK_STATUS
 PocPreWriteOperation(
     _Inout_ PFLT_CALLBACK_DATA Data,
@@ -44,16 +43,12 @@ PocPreWriteOperation(
     const LONGLONG StartingVbo = Data->Iopb->Parameters.Write.ByteOffset.QuadPart;
 
     AdvancedFcbHeader = FltObjects->FileObject->FsContext;
-    const LONGLONG FileSize = AdvancedFcbHeader->FileSize.QuadPart;
+    LONGLONG FileSize = AdvancedFcbHeader->FileSize.QuadPart;
 
     NonCachedIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE);
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
 
-    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
-    {
-        Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
-        goto ERROR;
-    }
+
     if (0 == ByteCount)
     {
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
@@ -174,6 +169,11 @@ PocPreWriteOperation(
     SwapBufferContext->OriginalLength = Data->Iopb->Parameters.Write.Length;
     SwapBufferContext->byte_offset = Data->Iopb->Parameters.Write.ByteOffset;
 
+    if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_FAST_IO_OPERATION))
+    {
+        Status = Status;
+        //goto ERROR;
+    }
 
     if (!NonCachedIo)
     {
@@ -190,9 +190,13 @@ PocPreWriteOperation(
         StreamContext->original_write_byteoffset = Data->Iopb->Parameters.Write.ByteOffset.QuadPart;
         StreamContext->original_write_length = Data->Iopb->Parameters.Write.Length;
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-        FltSetCallbackDataDirty(Data);
+        //FltSetCallbackDataDirty(Data);
 
     }
+
+    ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+    StreamContext->FileSize = FileSize;
+    ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
 
     if (!PagingIo)
@@ -228,17 +232,21 @@ PocPreWriteOperation(
             VolumeContext = NULL;
         }
 
+        //if (FlagOn(Data->Flags, FILE_FLAG_WRITE_THROUGH))
+        {
+            FileSize = StreamContext->original_write_byteoffset + StreamContext->original_write_length;
+        }
 
         //LengthReturned是本次Write真正需要写的数据 // FILE_FLAG_WRITE_THROUGH 在有该标志的情况下，第一次写入时会出现，FileSize == 0, StartingVbo == 0的情况，且ByteCount并不是实际写入的大小，而是缓冲区的大小。因此实际LengthReturned 应当在缓冲io中读取
-        // if (!PagingIo || FileSize >= StartingVbo + ByteCount)
-        // {
-        //     LengthReturned = ByteCount;
-        // }
-        // else
-        // {
-        //     LengthReturned = FileSize - StartingVbo;
-        // }
-        LengthReturned = StreamContext->original_write_length;
+        if (!PagingIo || FileSize >= StartingVbo + ByteCount)
+        {
+            LengthReturned = ByteCount;
+        }
+        else
+        {
+            LengthReturned = FileSize - StartingVbo;
+        }
+        //LengthReturned = StreamContext->original_write_length;
 
         //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocPreWriteOperation->RealToWrite = %I64d.\n", LengthReturned));
         
@@ -307,7 +315,6 @@ PocPreWriteOperation(
         }
 
 
-        
 
 
         if (FileSize > AES_BLOCK_SIZE &&
@@ -331,7 +338,7 @@ PocPreWriteOperation(
             goto ERROR;
         }
 
-        RtlZeroMemory(NewBuffer, NewBufferLength);
+        //RtlZeroMemory(NewBuffer, NewBufferLength);
 
         if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION)) 
         {
@@ -355,51 +362,41 @@ PocPreWriteOperation(
         try
         {
 
-            {//不知道是否要对  Data->Iopb->Parameters.Write 进行调整
-            // 也不知道是否要对 LengthReturned 进行调整
-                // 在 noncachedio 中 Data->Iopb->Parameters.Write.ByteOffset 和 Write.Length 似乎分别是 缓冲区起始位置在 文件中的偏移 和 缓冲区的长度
-                // 而非要写入的位置在文件中的偏移和实际要写入的数据长度，这二者已经是 cachedio 中的参数
-                //Data->Iopb->Parameters.Write.ByteOffset.QuadPart = SwapBufferContext->byte_offset.QuadPart & (((LONGLONG)-16));
-
-                //这里似乎是每次写入的时候 Data->Iopb->Parameters.Write.Length 都是缓冲区长度，而非是实际要写入的数据长度
-                // 实际要写入的数据长度时 cachedio 的 Data->Iopb->Parameters.Write.Length
-
-                // Data->Iopb->Parameters.Write.Length += offset;
-
-                // LengthReturned += (ULONG)(SwapBufferContext->byte_offset.QuadPart & 0x0f); // LengthReturned 就是 cachedio 时记录的实际要写入的数据长度，因此这里需要加上偏移
-                // 加上这个偏移之后会不会导致缓冲区越界呢？一定不会
-            }
-            LengthReturned += StreamContext->original_write_byteoffset - StartingVbo;
             // ULONG len = LengthReturned + (ULONG)(StreamContext->original_write_byteoffset - StartingVbo);
+            
             if(LengthReturned)
             {
                 ULONG bytesEncrypt = ROUND_TO_SIZE(LengthReturned, AES_BLOCK_SIZE);
                 bytesEncrypt = bytesEncrypt;
-                //Status = PocManualEncrypt(OrigBuffer, (ULONG)LengthReturned, NewBuffer, &bytesEncrypt, FileSize);
-                RtlCopyMemory(NewBuffer, OrigBuffer, 128);
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d NewBuffer is %s\n", __FUNCTION__, __LINE__, NewBuffer));
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d LengthReturned = %d\n", __FUNCTION__, __LINE__, LengthReturned));
-
-
-                //static int ii = 0;
-                //ii++;
-                //NewBuffer[0] = 'a' + (char)ii;
-                if (STATUS_SUCCESS != Status)
+                
+                if (LengthReturned < NewBufferLength)
                 {
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt error, Status = 0x%x\n", __FUNCTION__, __LINE__, Status));
+                    Status = PocManualEncrypt(OrigBuffer, (ULONG)LengthReturned, NewBuffer, &bytesEncrypt, FileSize);
+                    if (STATUS_SUCCESS != Status)
+                    {
+                        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt error, Status = 0x%x\n", __FUNCTION__, __LINE__, Status));
+                    }
+                    else
+                    {
+                        if (LengthReturned & 0x0f)
+                        {
+                            LONGLONG offset = LengthReturned & ((LONGLONG)-16);
+                            for (int i = 0; i < AES_BLOCK_SIZE; i++)
+                            {
+                                StreamContext->cipher_buffer[i] = ((CHAR*)NewBuffer)[offset + i];
+                            }
+                        }
+                        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt Success!\n", __FUNCTION__, __LINE__));
+                    }
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d LengthReturned = %d\n", __FUNCTION__, __LINE__, LengthReturned));
                 }
                 else
                 {
-                    if ( LengthReturned & 0x0f)
-                    {
-                        LONGLONG offset = LengthReturned & ((LONGLONG)-16);
-                        for (int i = 0; i < AES_BLOCK_SIZE; i++)
-                        {
-                            StreamContext->cipher_buffer[i] = ((CHAR*)NewBuffer)[offset + i];
-                        }
-                    }
-                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualDecrypt Success!\n", __FUNCTION__, __LINE__));
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d error LengthReturned is %d but NewBufferLength is %d\n", __FUNCTION__, __LINE__, LengthReturned, NewBufferLength));
                 }
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d NewBuffer is %s\n", __FUNCTION__, __LINE__, NewBuffer));
+
+
             }
 
         }
@@ -428,7 +425,7 @@ PocPreWriteOperation(
             (ULONG)LengthReturned,
             ProcessName,
             StreamContext->FileName));
-
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FileSize = %I64d\n", __FUNCTION__, __LINE__, StreamContext->FileSize));
 
         Status = FLT_PREOP_SUCCESS_WITH_CALLBACK;
         goto EXIT;
@@ -521,18 +518,18 @@ PocPostWriteOperation(
     }
 
 
-    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) &&
-        (TRUE != StreamContext->LessThanAesBlockSize || ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart > AES_BLOCK_SIZE))
+    if (BooleanFlagOn(Data->Iopb->IrpFlags, IRP_NOCACHE) && Data->IoStatus.Status == 0x0)
     {
         /*
         * 记录文件的明文大小，小于16个字节的StreamContext->FileSize已经在其他处更新过了，
         * 这里不能再更新了，因为这里的FileSize已经是16个字节了。
         */
-        // ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-        // StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+        //StreamContext->FileSize = ((PFSRTL_ADVANCED_FCB_HEADER)FltObjects->FileObject->FsContext)->FileSize.QuadPart;
+        StreamContext->FileSize = StreamContext->original_write_byteoffset + StreamContext->original_write_length;
 
-        // ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
     }
 
 
