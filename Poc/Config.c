@@ -58,7 +58,6 @@ const PWCHAR secure_process[] = {
 	*/
 	L"C:\\Program Files\\hkx3upper\\PocUserPanel.exe",
 	L"C:\\Users\\wangzhankun\\Desktop\\test\\TEST.exe",
-	
 	/*
 	* ”√ªß≥Ã–Ú
 	*/

@@ -435,7 +435,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (!NT_SUCCESS(Status) || 0 == VolumeContext->SectorSize)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltGetVolumeContext failed. Status = 0x%x.\n", __FUNCTION__, Status));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltGetVolumeContext failed. Status = 0x%x.\n", __FUNCTION__, __LINE__,Status));
         goto EXIT;
     }
 
@@ -454,23 +454,24 @@ NTSTATUS PocAppendEncTailerToFile(
         &IoStatusBlock,
         NULL,
         FILE_ATTRIBUTE_NORMAL,
-        FILE_SHARE_READ,
+        // FILE_SHARE_READ,
+        0,
         FILE_OPEN,
-        FILE_NON_DIRECTORY_FILE,
+        FILE_NON_DIRECTORY_FILE | FILE_SEQUENTIAL_ONLY | FILE_NO_INTERMEDIATE_BUFFERING,
         NULL,
         0,
-        0);
+        IO_FORCE_ACCESS_CHECK);
 
     if (STATUS_SUCCESS != Status)
     {
         if (STATUS_OBJECT_NAME_NOT_FOUND == Status ||
             STATUS_OBJECT_PATH_SYNTAX_BAD == Status)
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx Status = 0x%x. Success->It means that the file has been deleted.\n", __FUNCTION__, Status));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltCreateFileEx Status = 0x%x. Success->It means that the file has been deleted.\n", __FUNCTION__, __LINE__,Status));
         }
         else
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x.\n", __FUNCTION__, Status));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltCreateFileEx failed. Status = 0x%x.\n", __FUNCTION__, __LINE__,Status));
         }
         goto EXIT;
     }
@@ -493,7 +494,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (NULL == WriteBuffer)
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltAllocatePoolAlignedWithTag WriteBuffer failed.\n", __FUNCTION__, __LINE__));
         Status = STATUS_UNSUCCESSFUL;
         goto EXIT;
     }
@@ -529,7 +530,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
     if (!NT_SUCCESS(Status))
     {
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltWriteFileEx failed. Status = 0x%x.\n", __FUNCTION__, Status));
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltWriteFileEx failed. Status = 0x%x.\n", __FUNCTION__, __LINE__,Status));
         goto EXIT;
     }
 
@@ -560,16 +561,18 @@ NTSTATUS PocAppendEncTailerToFile(
             &IoStatusBlock,
             NULL,
             FILE_ATTRIBUTE_NORMAL,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            // FILE_SHARE_READ | FILE_SHARE_WRITE,
+            0,
             FILE_OPEN,
-            FILE_NON_DIRECTORY_FILE,
+            // FILE_NON_DIRECTORY_FILE,
+            FILE_NON_DIRECTORY_FILE | FILE_SEQUENTIAL_ONLY | FILE_NO_INTERMEDIATE_BUFFERING,
             NULL,
             0,
             IO_IGNORE_SHARE_ACCESS_CHECK);
 
         if (STATUS_SUCCESS != Status)
         {
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, Status));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltCreateFileEx failed. Status = 0x%x\n", __FUNCTION__, __LINE__,Status));
             goto EXIT;
         }
 
@@ -585,7 +588,7 @@ NTSTATUS PocAppendEncTailerToFile(
 
             if (!NT_SUCCESS(Status) && STATUS_END_OF_FILE != Status)
             {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocInitShadowSectionObjectPointers->FltReadFileEx init ciphertext cache failed. Status = 0x%x\n", Status));
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocInitShadowSectionObjectPointers->FltReadFileEx init ciphertext cache failed. Status = 0x%x\n", __FUNCTION__, __LINE__,Status));
                 goto EXIT;
             }
         }
@@ -605,8 +608,8 @@ NTSTATUS PocAppendEncTailerToFile(
 
 
             PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                ("%s->CcSetFileSizes chipertext cache map size.File = %ws AllocationSize = %I64d ValidDataLength = %I64d FileSize = %I64d SCM = %d DSO = %d.\n",
-                    __FUNCTION__,
+                ("%s@%d CcSetFileSizes chipertext cache map size.File = %ws AllocationSize = %I64d ValidDataLength = %I64d FileSize = %I64d SCM = %d DSO = %d.\n",
+                    __FUNCTION__,__LINE__,
                     StreamContext->FileName,
                     ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->AllocationSize.QuadPart,
                     ((PFSRTL_ADVANCED_FCB_HEADER)(FileObject->FsContext))->ValidDataLength.QuadPart,
@@ -1450,12 +1453,31 @@ EXIT:
     return Status;
 }
 
-
 VOID PocAppendEncTailerThread(
     IN PVOID StartContext)
 {
     PPOC_STREAM_CONTEXT StreamContext = StartContext;
+    NTSTATUS Status = STATUS_SUCCESS;
 
+    LARGE_INTEGER Interval = { 0 };
+    Interval.QuadPart = -30 * 1000 * 1000; //3s
+
+
+    while(TRUE)
+    {
+        Status = PocAppendEncImmediately(StreamContext);
+        if(STATUS_TOO_MANY_THREADS != Status) break;
+        KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+    }
+    if(STATUS_SUCCESS != Status)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocAppendEncImmediately failed. Status = 0x%x\n", __FUNCTION__, Status));
+    }
+    PsTerminateSystemThread(Status);
+}
+
+NTSTATUS PocAppendEncImmediately(IN PPOC_STREAM_CONTEXT StreamContext)
+{
     if (NULL == StreamContext ||
         NULL == StreamContext->FileName ||
         NULL == StreamContext->Volume ||
@@ -1463,61 +1485,46 @@ VOID PocAppendEncTailerThread(
     {
         PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, 
             ("%s->StreamContext or FileName or Volume or Instance is NULL.\n", __FUNCTION__));
-        return;
+        return STATUS_INVALID_PARAMETER;
     }
 
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    LARGE_INTEGER Interval = { 0 };
-    Interval.QuadPart = -30 * 1000 * 1000; //3s
-
-    BOOLEAN Continue = 0;
 
     /*
     * 这里要遍历一下判断操作该文件的所有授权进程已关闭，
     * 此时可以重入加密或写入文件标识尾，不会有死锁了。
     */
-    while (TRUE)
+
+
+    for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
     {
-
-        Continue = FALSE;
-
-
-
-        for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
+        if (NULL != StreamContext->ProcessId[i])
         {
-            if (NULL != StreamContext->ProcessId[i])
-            {
-                
-                /*
-                * 遍历一下链表，如果进程结束，
-                * 链表节点会在PocProcessNotifyRoutineEx函数中被清除掉。
-                */
-                Status = PocFindProcessInfoNodeByPidEx(
-                    StreamContext->ProcessId[i],
-                    NULL,
-                    FALSE,
-                    FALSE);
+            
+            /*
+            * 遍历一下链表，如果进程结束，
+            * 链表节点会在PocProcessNotifyRoutineEx函数中被清除掉。
+            */
+            Status = PocFindProcessInfoNodeByPidEx(
+                StreamContext->ProcessId[i],
+                NULL,
+                FALSE,
+                FALSE);
 
-                if (STATUS_SUCCESS != Status)
-                {
-                    StreamContext->ProcessId[i] = NULL;
-                }
-                else
-                {
-                    Continue = TRUE;
-                }
+            if (STATUS_SUCCESS != Status)
+            {
+                StreamContext->ProcessId[i] = NULL;
+            }
+            else
+            {
+                return STATUS_TOO_MANY_THREADS;//还是有授权进程在控制该文件
             }
         }
 
-        if (!Continue)
-        {
-            break;
-        }
-        Status = KeDelayExecutionThread(KernelMode, FALSE, &Interval);
-
     }
 
+    Status = STATUS_SUCCESS;
 
     /*
     * 添加加密标识尾的地方
@@ -1555,7 +1562,6 @@ VOID PocAppendEncTailerThread(
                 Status,
                 StreamContext->FileName));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1592,7 +1598,6 @@ VOID PocAppendEncTailerThread(
                 __FUNCTION__,
                 Status));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1622,7 +1627,6 @@ VOID PocAppendEncTailerThread(
                 __FUNCTION__,
                 Status));
 
-            Status = FLT_POSTOP_FINISHED_PROCESSING;
             goto EXIT;
         }
 
@@ -1648,8 +1652,9 @@ EXIT:
         FltReleaseContext(StreamContext);
         StreamContext = NULL;
     }
-
-    PsTerminateSystemThread(Status);
+    
+    
+    return Status;
 }
 
 

@@ -1212,6 +1212,10 @@ PocPostCloseOperationWhenSafe(
 
     HANDLE ThreadHandle = NULL;
 
+    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    PocGetProcessName(Data, ProcessName);
+
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d enter, StreamContext->Flag = 0x%0X, File = %ws, ProcessName is %ws\n", __FUNCTION__, __LINE__, StreamContext->Flag, StreamContext->FileName, ProcessName));
 
     /*
     * 由PostClose创建线程去写入文件标识尾或重入加密，解决docx死锁问题
@@ -1227,12 +1231,15 @@ PocPostCloseOperationWhenSafe(
         ExReleaseResourceLite(StreamContext->Resource);
 
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
         StreamContext->AppendTailerThreadStart = TRUE;
-
         ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        
+        // Status = PocAppendEncImmediately(StreamContext);//首先直接尝试添加文件标识尾，如果出错了再启动线程
+        Status = STATUS_TOO_MANY_THREADS;
+        if(STATUS_TOO_MANY_THREADS == Status)
+        {
 
-        Status = PsCreateSystemThread(
+            Status = PsCreateSystemThread(
             &ThreadHandle,
             THREAD_ALL_ACCESS,
             NULL,
@@ -1241,35 +1248,46 @@ PocPostCloseOperationWhenSafe(
             PocAppendEncTailerThread,
             StreamContext);
 
-        if (STATUS_SUCCESS != Status)
-        {
+            if (STATUS_SUCCESS != Status)
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s->PsCreateSystemThread PocAppendEncTailerThread failed. Status = 0x%x.\n",
+                        __FUNCTION__,
+                        Status));
+
+                ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+
+                StreamContext->AppendTailerThreadStart = FALSE;
+
+                ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+
+
+                goto EXIT;
+            }
+
             PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                ("%s->PsCreateSystemThread PocAppendEncTailerThread failed. Status = 0x%x.\n",
+                ("%s->PsCreateSystemThread PocAppendEncTailerThread %ws init success. FileSize = %I64d.\n",
                     __FUNCTION__,
-                    Status));
+                    StreamContext->FileName,
+                    StreamContext->FileSize));
 
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-            StreamContext->AppendTailerThreadStart = FALSE;
-
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-
-
-            goto EXIT;
+            if (NULL != ThreadHandle)
+            {
+                ZwClose(ThreadHandle);
+                ThreadHandle = NULL;
+            }
         }
-
-        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-            ("%s->PsCreateSystemThread PocAppendEncTailerThread %ws init success. FileSize = %I64d.\n",
-                __FUNCTION__,
-                StreamContext->FileName,
-                StreamContext->FileSize));
-
-        if (NULL != ThreadHandle)
+        else
         {
-            ZwClose(ThreadHandle);
-            ThreadHandle = NULL;
+            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+            StreamContext->AppendTailerThreadStart = FALSE;
+            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                ("%s@%d PocAppendEncImmediately %ws init success. FileSize = %I64d.\n",
+                    __FUNCTION__,__LINE__,
+                    StreamContext->FileName,
+                    StreamContext->FileSize));
         }
-
         goto EXIT;
     }
     else

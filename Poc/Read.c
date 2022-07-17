@@ -341,7 +341,7 @@ PocPreReadOperation(
             goto ERROR;
         }
 
-        RtlZeroMemory(NewBuffer, ByteCount);
+        //RtlZeroMemory(NewBuffer, ByteCount);
 
 
         if (FlagOn(Data->Flags, FLTFL_CALLBACK_DATA_IRP_OPERATION))

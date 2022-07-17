@@ -246,6 +246,7 @@ PocPreSetInformationOperation(
 
     PVOID InfoBuffer = NULL;
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    PocGetProcessName(Data, ProcessName);
 
     Status = PocFindOrCreateStreamContext(
         Data->Iopb->TargetInstance,
@@ -293,106 +294,106 @@ PocPreSetInformationOperation(
     {
     case FileEndOfFileInformation:
     {
-        PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
+        // PFILE_END_OF_FILE_INFORMATION Info = (PFILE_END_OF_FILE_INFORMATION)InfoBuffer;
 
-        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
-        {
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+        // if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
+        // {
+        //     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.QuadPart;
-            StreamContext->LessThanAesBlockSize = TRUE;
+        //     StreamContext->FileSize = Info->EndOfFile.QuadPart;
+        //     StreamContext->LessThanAesBlockSize = TRUE;
 
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        //     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        //     Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            Status = PocGetProcessName(Data, ProcessName);
+        //     Status = PocGetProcessName(Data, ProcessName);
 
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d process = %ws.\n",
-                __FUNCTION__,
-                StreamContext->FileName,
-                StreamContext->FileSize,
-                Info->EndOfFile.QuadPart,
-                ProcessName));
+        //     PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d process = %ws.\n",
+        //         __FUNCTION__,
+        //         StreamContext->FileName,
+        //         StreamContext->FileSize,
+        //         Info->EndOfFile.QuadPart,
+        //         ProcessName));
 
-            FltSetCallbackDataDirty(Data);
-        }
-        else if (0 == Info->EndOfFile.QuadPart)
-        {
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+        //     FltSetCallbackDataDirty(Data);
+        // }
+        // else if (0 == Info->EndOfFile.QuadPart)
+        // {
+        //     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.QuadPart;
-            StreamContext->IsCipherText = FALSE;
+        //     StreamContext->FileSize = Info->EndOfFile.QuadPart;
+        //     StreamContext->IsCipherText = FALSE;
 
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-        }
+        //     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        // }
 
         break;
     }
     case FileStandardInformation:
     {
-        PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
+        // PFILE_STANDARD_INFORMATION Info = (PFILE_STANDARD_INFORMATION)InfoBuffer;
 
-        if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
-        {
-            Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        // if (Info->EndOfFile.QuadPart < AES_BLOCK_SIZE && Info->EndOfFile.QuadPart > 0)
+        // {
+        //     Info->EndOfFile.QuadPart = (Info->EndOfFile.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+        //     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.QuadPart;
-            StreamContext->LessThanAesBlockSize = TRUE;
+        //     StreamContext->FileSize = Info->EndOfFile.QuadPart;
+        //     StreamContext->LessThanAesBlockSize = TRUE;
 
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        //     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
-                __FUNCTION__,
-                StreamContext->FileName,
-                StreamContext->FileSize,
-                Info->EndOfFile.QuadPart));*/
+        //     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo EndOfFile filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
+        //         __FUNCTION__,
+        //         StreamContext->FileName,
+        //         StreamContext->FileSize,
+        //         Info->EndOfFile.QuadPart));*/
 
-            FltSetCallbackDataDirty(Data);
-        }
-        else if (0 == Info->EndOfFile.QuadPart)
-        {
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+        //     FltSetCallbackDataDirty(Data);
+        // }
+        // else if (0 == Info->EndOfFile.QuadPart)
+        // {
+        //     ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
 
-            StreamContext->FileSize = Info->EndOfFile.QuadPart;
-            StreamContext->IsCipherText = FALSE;
+        //     StreamContext->FileSize = Info->EndOfFile.QuadPart;
+        //     StreamContext->IsCipherText = FALSE;
 
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-        }
+        //     ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
+        // }
 
-        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
-        {
-            Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        // if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
+        // {
+        //     Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo Alloc filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
-                __FUNCTION__,
-                StreamContext->FileName,
-                StreamContext->FileSize,
-                Info->AllocationSize.QuadPart));*/
+        //     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->StandInfo Alloc filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
+        //         __FUNCTION__,
+        //         StreamContext->FileName,
+        //         StreamContext->FileSize,
+        //         Info->AllocationSize.QuadPart));*/
 
-            FltSetCallbackDataDirty(Data);
-        }
+        //     FltSetCallbackDataDirty(Data);
+        // }
 
         break;
     }
     case FileAllocationInformation:
     {
-        PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
+        // PFILE_ALLOCATION_INFORMATION Info = (PFILE_ALLOCATION_INFORMATION)InfoBuffer;
 
-        if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
-        {
-            Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
+        // if (Info->AllocationSize.QuadPart < AES_BLOCK_SIZE && Info->AllocationSize.QuadPart > 0)
+        // {
+        //     Info->AllocationSize.QuadPart = (Info->AllocationSize.QuadPart / AES_BLOCK_SIZE + 1) * AES_BLOCK_SIZE;
 
-            /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->AllocInfo filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
-                __FUNCTION__,
-                StreamContext->FileName,
-                StreamContext->FileSize,
-                Info->AllocationSize.QuadPart));*/
+        //     /*PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->AllocInfo filename = %ws origin filesize = %I64d new filesize = %I64d.\n",
+        //         __FUNCTION__,
+        //         StreamContext->FileName,
+        //         StreamContext->FileSize,
+        //         Info->AllocationSize.QuadPart));*/
 
-            FltSetCallbackDataDirty(Data);
-        }
+        //     FltSetCallbackDataDirty(Data);
+        // }
         
         break;
     }
