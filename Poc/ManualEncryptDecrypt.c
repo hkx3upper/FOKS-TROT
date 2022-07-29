@@ -8,12 +8,6 @@
 
 #define MANUAL_ENCRYPT_DECRYPT_BUFFER_TAG 'medb'
 
-
-
-
-
-
-
 /**
  * @Author: wangzhankun
  * @Date: 2022-06-20 12:54:05
@@ -52,12 +46,36 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 	}
 
 	PCHAR encryption_tailer_buffer = NULL;
+	PPOC_STREAM_CONTEXT StreamContext = NULL;
 
+	// // 清除缓存
+	// __try{
+	// 	OBJECT_ATTRIBUTES ObjectAttributes = {0};
+	// 	IO_STATUS_BLOCK IoStatusBlock = {0};
+
+	// 	Status = ZwOpenFile(
+	// 		&hFile,
+	// 		GENERIC_READ,
+	// 		&ObjectAttributes,
+	// 		&IoStatusBlock,
+	// 		0,//独占
+	// 		FILE_NON_DIRECTORY_FILE |
+	// 				FILE_SEQUENTIAL_ONLY |
+	// 				FILE_NO_INTERMEDIATE_BUFFERING
+	// 	);
+
+	// }
+	// __finally{
+
+	// }
+
+	// 加解密
 	__try
 	{
 		OBJECT_ATTRIBUTES ObjectAttributes = {0};
 		IO_STATUS_BLOCK IoStatusBlock = {0};
 		UNICODE_STRING uFileName;
+
 		{ //打开文件
 			RtlInitUnicodeString(&uFileName, FileName);
 			InitializeObjectAttributes(&ObjectAttributes,
@@ -87,6 +105,27 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 			if (!NT_SUCCESS(Status))
 			{
 				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltCreateFileEx failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+				Status = POC_STATUS_EXCLUSIVE_OPEN_FILE_FAILED;
+				__leave;
+			}
+		}
+
+		{//清理缓存
+			Status = FltFlushBuffers(Instance, FileObject);
+			if (!NT_SUCCESS(Status))
+			{
+				if (STATUS_MEDIA_WRITE_PROTECTED == Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltFlushBuffers failed is STATUS_MEDIA_WRITE_PROTECTED\n", __FUNCTION__, __FILE__, __LINE__));
+				}
+				else if (STATUS_VOLUME_DISMOUNTED == Status)
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltFlushBuffers failed is STATUS_VOLUME_DISMOUNTED\n", __FUNCTION__, __FILE__, __LINE__));
+				}
+				else
+				{
+					PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltFlushBuffers failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
+				}
 				__leave;
 			}
 		}
@@ -220,6 +259,64 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 		ULONG bytesRead = 0;
 		ULONG bytesWrite = 0;
 
+		{ // 预处理 StreamContext
+			BOOLEAN ContextCreated = FALSE;
+			Status = PocFindOrCreateStreamContext(
+				Instance,
+				FileObject,
+				FALSE,
+				&StreamContext,
+				&ContextCreated);
+
+			if (STATUS_SUCCESS == Status)
+			{
+				if (is_for_encrypt)
+				{
+					if (TRUE == StreamContext->IsCipherText)
+					{
+						// Status = POC_FILE_IS_CIPHERTEXT;
+						Status = STATUS_SUCCESS;
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+									 ("%s->%ws is ciphertext. Encrypt failed. FileSize = %I64d.\n",
+									  __FUNCTION__, FileName, StreamContext->FileSize));
+
+						__leave;
+					}
+					PocUpdateFlagInStreamContext(StreamContext, 0);
+				}
+				else
+				{ // decrypt
+					if (FALSE == StreamContext->IsCipherText)
+					{
+						Status = POC_FILE_IS_PLAINTEXT;
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+									 ("%s@%d %ws is plaintext. Decrypt failed. FileSize = %I64d.\n",
+									  __FUNCTION__, __LINE__, FileName, StreamContext->FileSize));
+						__leave;
+					}
+					PocUpdateFlagInStreamContext(StreamContext, 0);
+					if (FileObject->SectionObjectPointer == StreamContext->ShadowSectionObjectPointers)
+					{
+						if (TRUE == StreamContext->IsReEncrypted)
+						{
+							/*
+							 * PrivateCacheMap要置0，否则文件系统驱动不建立缓冲，不过这里不会进入了，
+							 * 因为在PostCreate对这个状态的文件，无论是什么进程，都指向明文缓冲。
+							 */
+							FileObject->SectionObjectPointer = StreamContext->OriginSectionObjectPointers;
+							FileObject->PrivateCacheMap = NULL;
+						}
+						else
+						{
+							PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->Unauthorized process can't decrypt file.\n", __FUNCTION__));
+							Status = POC_IS_UNAUTHORIZED_PROCESS;
+							__leave;
+						}
+					}
+				}
+			}
+		}
+
 		{ //读取文件并加密/解密写入
 
 			while (TRUE)
@@ -256,18 +353,6 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 					}
 				}
 
-				{ //为方便密文挪用，这里进行数据截取
-					LARGE_INTEGER left;
-					left.QuadPart = file_size.QuadPart - byteOffset.QuadPart - bytesRead;
-
-					if (left.QuadPart < AES_BLOCK_SIZE && left.QuadPart > 0)
-					{
-						// 如果剩下的数据不足一个AES_BLOCK_SIZE，就需要密文挪用
-						bytesRead -= PAGE_SIZE; //密文挪用只需要减去一个AES_BLOCK_SIZE即可，这里减去1个页面大小是为了与sector size对齐
-												// 另外既然剩下还有一些数据未读取，那么当前bytesRead == BUFFER_SIZE，无需担心不够减的情况
-					}
-				}
-
 				{							  //加密 or 解密
 					bytesWrite = BUFFER_SIZE; //需要设置为缓冲区的大小。
 
@@ -281,26 +366,28 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 						}
 
 						bytesWrite = ROUND_TO_SIZE(bytesWrite, AES_BLOCK_SIZE);
-						if(bytesRead & 0x0f)//如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b,
+						if (bytesRead & 0x0f) //如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b,
 						{
-							ULONG offset = bytesRead - (bytesRead & 0x0f);// 找到不足一个AES_BLOCK_SIZE的位置。 (bytesRead & 0x0f)等价于 bytesRead % 16. 如果bytesRead 不是16的倍数，那么一定是文件最后一次读取出的数据
-							for(int i = 0; i < AES_BLOCK_SIZE; i++)
+							ULONG offset = bytesRead - (bytesRead & 0x0f); // 找到不足一个AES_BLOCK_SIZE的位置。 (bytesRead & 0x0f)等价于 bytesRead % 16. 如果bytesRead 不是16的倍数，那么一定是文件最后一次读取出的数据
+							for (int i = 0; i < AES_BLOCK_SIZE; i++)
 							{
 								encryption_tailer->CipherText[i] = write_buffer[offset + i];
+								if(StreamContext)
+									StreamContext->cipher_buffer[i] = write_buffer[offset + i];
 							}
-							bytesWrite = bytesRead;//明文多少就写入多少，多余的密文记录到文件标识尾中
+							bytesWrite = bytesRead; //明文多少就写入多少，多余的密文记录到文件标识尾中
 						}
 					}
 					else
 					{
 						// 由于此时 bytesRead 是根据 file_size 进行了截断
 
-						if(bytesRead & 0x0f)//如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b, 
+						if (bytesRead & 0x0f) //如果 bytesRead 是 AES_BLOCK_SIZE（0x10） 的倍数的话，那么 一定是 0x10 的倍数， 那么其 低4位一定是 0000b,
 						{
 							ULONG offset = bytesRead - (bytesRead & 0x0f);
-							for(int i = 0; i < AES_BLOCK_SIZE; i++)
+							for (int i = 0; i < AES_BLOCK_SIZE; i++)
 							{
-								write_buffer[offset + i] = encryption_tailer->CipherText[i];//从文件标识尾中提取密文
+								read_buffer[offset + i] = encryption_tailer->CipherText[i]; //从文件标识尾中提取密文
 							}
 						}
 						Status = PocManualDecrypt(read_buffer, bytesRead, write_buffer, &bytesWrite, file_size.QuadPart);
@@ -379,37 +466,35 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 			}
 		}
 
-		{
-			//这里使用了new_status，因为这边发生错误的话，是不影响文件的加密或者解密
-			NTSTATUS new_status = Status;
-
-			// if (!is_for_encrypt)
+		{ // 后处理 StreamContext
+			if (StreamContext)
 			{
-				PPOC_STREAM_CONTEXT stream_context = NULL;
-				__try
+				ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
+		
+				StreamContext->FileSize = encryption_tailer->FileSize;
+				StreamContext->Flag = 0;
+				StreamContext->IsDirty = FALSE;
+
+				if (is_for_encrypt)
 				{
-					new_status = PocFindOrCreateStreamContext(Instance, FileObject, FALSE, &stream_context, NULL);
-					if (new_status != STATUS_SUCCESS)
-					{
-						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d PocFindOrCreateStreamContext failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, new_status));
-						__leave;
-					}
-					if (stream_context)
-					{
-						ExEnterCriticalRegionAndAcquireResourceExclusive(stream_context->Resource);
-						stream_context->IsCipherText = is_for_encrypt;
-						ExReleaseResourceAndLeaveCriticalRegion(stream_context->Resource);
-					}
+					StreamContext->IsCipherText = TRUE;
 				}
-				__finally
+				else
 				{
+					StreamContext->IsCipherText = FALSE;
+					StreamContext->IsReEncrypted = FALSE;
 				}
+				ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
 			}
 		}
 	}
 	__finally
 	{
-
+		if (StreamContext)
+		{
+			FltReleaseContext(StreamContext);
+			StreamContext = NULL;
+		}
 		if (NULL != hFile)
 		{
 			FltClose(hFile);

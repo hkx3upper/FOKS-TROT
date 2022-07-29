@@ -12,7 +12,7 @@ typedef struct _POC_ENCRYPTION_TAILER
 	BOOLEAN IsCipherText;
 	CHAR EncryptionAlgorithmType[32];
 	CHAR KeyAndCiphertextHash[32];
-	CHAR CipherText[16];//用于记录文件大小不足一个 AES_BLOCK_SIZE 时多余的密文
+	UCHAR CipherText[16];//用于记录文件大小不足一个 AES_BLOCK_SIZE 时多余的密文
 }POC_ENCRYPTION_TAILER, * PPOC_ENCRYPTION_TAILER;
 
 extern POC_ENCRYPTION_TAILER EncryptionTailer;
@@ -38,10 +38,6 @@ NTSTATUS PocCreateFileForEncTailer(
 	IN PPOC_STREAM_CONTEXT StreamContext,
 	IN PWCHAR ProcessName);
 
-NTSTATUS PocAppendEncTailerToFile(
-	IN PFLT_VOLUME Volume,
-	IN PFLT_INSTANCE Instance,
-	IN PPOC_STREAM_CONTEXT StreamContext);
 
 NTSTATUS PocNtfsFlushAndPurgeCache(
 	IN PFLT_INSTANCE Instance,
@@ -50,27 +46,15 @@ NTSTATUS PocNtfsFlushAndPurgeCache(
 NTSTATUS PocFlushOriginalCache(
 	IN PFLT_INSTANCE Instance,
 	IN PWCHAR FileName);
-
-NTSTATUS PocReentryToEncrypt(
-	IN PFLT_INSTANCE Instance,
-	IN PWCHAR FileName);
-
-NTSTATUS PocReentryToDecrypt(
-	IN PFLT_INSTANCE Instance,
-	IN PWCHAR FileName);
+	
+NTSTATUS PocReentryToGetStreamContext(
+    IN PFLT_INSTANCE Instance,
+    IN PWCHAR FileName,
+    OUT PPOC_STREAM_CONTEXT* StreamContext);
 
 KSTART_ROUTINE PocAppendEncTailerThread;
 
-/**
- * @Author: wangzhankun
- * @Date: 2022-07-07 20:08:14
- * @LastEditors: wangzhankun
- * @update: 
- * @brief 该函数只能在 PostClose 和 PocAppendEncTailerThread 中被调用
- * @param {IN PPOC_STREAM_CONTEXT} StreamContext
- * @return STATUS_SUCCESS 如果成功,  STATUS_TOO_MANY_THREADS 如果仍然有授权进程占有该文件; 其它返回值表示失败
- */
-NTSTATUS PocAppendEncImmediately(IN PPOC_STREAM_CONTEXT StreamContext);
+
 
 NTSTATUS PocReadFileFromCache(
 	IN PFLT_INSTANCE Instance,
@@ -82,11 +66,6 @@ NTSTATUS PocReadFileFromCache(
 NTSTATUS PocInitFlushFileObject(
 	IN PWCHAR FileName,
 	IN OUT PFILE_OBJECT* FileObject);
-
-NTSTATUS PocFindOrCreateStreamContextOutsite(
-	IN PFLT_INSTANCE Instance,
-	IN PWCHAR FileName,
-	IN BOOLEAN CreateIfNotFound);
 
 
 /**

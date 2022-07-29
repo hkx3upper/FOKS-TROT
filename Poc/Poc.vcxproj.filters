@@ -78,6 +78,9 @@
     <ClCompile Include="ManualEncryptDecrypt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="AppendEncTailer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="utils.h">
@@ -126,6 +129,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="manualencryptdecrypt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="appendenctailer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

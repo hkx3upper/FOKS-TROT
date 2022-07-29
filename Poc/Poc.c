@@ -30,7 +30,7 @@ Environment:
 #include "processecure.h"
 #include "Dpc.h"
 #include "context.h"
-
+#include "appendenctailer.h"
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 
@@ -564,6 +564,13 @@ Return Value:
         goto EXIT;
     }
 
+    status = PocInitAndStartAppendEncTailerThread();
+    if(status != STATUS_SUCCESS)
+    {
+        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocInitAndStartAppendEncTailerThread failed.\n", __FUNCTION__, __LINE__));
+        goto EXIT;
+    }
+
     //
     //  Start filtering i/o
     //
@@ -666,6 +673,8 @@ Return Value:
     */
 
     PocCloseCommPort();
+
+    PocStopAndCleanAppendEncTailerThread();
 
     PocProcessCleanup();
 
@@ -819,6 +828,8 @@ PocPostCreateOperationWhenSafe(
             {
                 // 找到了文件标识尾，需要对文件进行控制
                 //do nothing
+                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                    ("%s@%d Find StreamContext.\n", __FUNCTION__, __LINE__));
             }
         }
         else
@@ -1210,16 +1221,12 @@ PocPostCloseOperationWhenSafe(
     PPOC_STREAM_CONTEXT StreamContext = NULL;
     StreamContext = CompletionContext;
 
-    HANDLE ThreadHandle = NULL;
 
     WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
     PocGetProcessName(Data, ProcessName);
 
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d enter, StreamContext->Flag = 0x%0X, File = %ws, ProcessName is %ws\n", __FUNCTION__, __LINE__, StreamContext->Flag, StreamContext->FileName, ProcessName));
+    //PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d enter, StreamContext->Flag = 0x%0X, File = %ws, ProcessName is %ws\n", __FUNCTION__, __LINE__, StreamContext->Flag, StreamContext->FileName, ProcessName));
 
-    /*
-    * 由PostClose创建线程去写入文件标识尾或重入加密，解决docx死锁问题
-    */
     ExAcquireResourceSharedLite(StreamContext->Resource, TRUE);
 
     if ((POC_TO_APPEND_ENCRYPTION_TAILER == StreamContext->Flag ||
@@ -1229,64 +1236,14 @@ PocPostCloseOperationWhenSafe(
         StreamContext->AppendTailerThreadStart == FALSE)
     {
         ExReleaseResourceLite(StreamContext->Resource);
-
-        ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-        StreamContext->AppendTailerThreadStart = TRUE;
-        ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-        
-        // Status = PocAppendEncImmediately(StreamContext);//首先直接尝试添加文件标识尾，如果出错了再启动线程
-        Status = STATUS_TOO_MANY_THREADS;
-        if(STATUS_TOO_MANY_THREADS == Status)
+        Status = PocAppendEncTailerLazy(StreamContext);        
+        if(STATUS_SUCCESS == Status)
         {
-
-            Status = PsCreateSystemThread(
-            &ThreadHandle,
-            THREAD_ALL_ACCESS,
-            NULL,
-            NULL,
-            NULL,
-            PocAppendEncTailerThread,
-            StreamContext);
-
-            if (STATUS_SUCCESS != Status)
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                    ("%s->PsCreateSystemThread PocAppendEncTailerThread failed. Status = 0x%x.\n",
-                        __FUNCTION__,
-                        Status));
-
-                ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-
-                StreamContext->AppendTailerThreadStart = FALSE;
-
-                ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-
-
-                goto EXIT;
-            }
-
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                ("%s->PsCreateSystemThread PocAppendEncTailerThread %ws init success. FileSize = %I64d.\n",
-                    __FUNCTION__,
-                    StreamContext->FileName,
-                    StreamContext->FileSize));
-
-            if (NULL != ThreadHandle)
-            {
-                ZwClose(ThreadHandle);
-                ThreadHandle = NULL;
-            }
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocAppendEncTailerLazy success\n", __FUNCTION__, __LINE__));
         }
         else
         {
-            ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
-            StreamContext->AppendTailerThreadStart = FALSE;
-            ExReleaseResourceAndLeaveCriticalRegion(StreamContext->Resource);
-            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
-                ("%s@%d PocAppendEncImmediately %ws init success. FileSize = %I64d.\n",
-                    __FUNCTION__,__LINE__,
-                    StreamContext->FileName,
-                    StreamContext->FileSize));
+            PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocAppendEncTailerLazy failed, Status = 0x%x\n", __FUNCTION__, __LINE__, Status));
         }
         goto EXIT;
     }

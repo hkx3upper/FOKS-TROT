@@ -35,6 +35,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AppendEncTailer.c" />
     <ClCompile Include="CommPort.c" />
     <ClCompile Include="Config.c" />
     <ClCompile Include="Context.c" />
@@ -215,6 +216,7 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="appendenctailer.h" />
     <ClInclude Include="commport.h" />
     <ClInclude Include="context.h" />
     <ClInclude Include="cipher.h" />

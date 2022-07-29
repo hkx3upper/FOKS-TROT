@@ -217,28 +217,14 @@ NTSTATUS PocMessageNotifyCallback(
 				}
 
 
-				// Status = PocFindOrCreateStreamContextOutsite(
-				// 	Instance, 
-				// 	uFileName.Buffer, 
-				// 	TRUE);
-
-				// if (STATUS_SUCCESS != Status)
-				// {
-				// 	PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocFindOrCreateStreamContextOutsite failed.\n", __FUNCTION__));
-				// 	goto EXIT;
-				// }
 
 				if (POC_PRIVILEGE_DECRYPT == MessageHeader.Command)
 				{
-					// Status = PocReentryToDecrypt(
-					// 	Instance,
-					// 	uFileName.Buffer);
-
 					Status = PocManualEncryptOrDecrypt(uFileName.Buffer, Instance, FALSE);
 
 					if (STATUS_SUCCESS != Status)
 					{
-						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualEncryptOrDecrypt for decrypt failed.\n", __FUNCTION__,__LINE__));
 						goto EXIT;
 					}
 				}
@@ -251,7 +237,7 @@ NTSTATUS PocMessageNotifyCallback(
 
 					if (STATUS_SUCCESS != Status)
 					{
-						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("PocMessageNotifyCallback->PocReentryToDecrypt failed.\n"));
+						PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocManualEncryptOrDecrypt for encrypt failed.\n", __FUNCTION__,__LINE__));
 						goto EXIT;
 					}
 				}
