@@ -467,7 +467,7 @@ PocPostSetInformationOperationWhenSafe(
     HANDLE FileHandle = NULL;
     // IO_STATUS_BLOCK IoStatusBlock = { 0 };
 
-    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = { 0 };
+    WCHAR ProcessName[POC_MAX_NAME_LENGTH] = {0};
     PocGetProcessName(Data, ProcessName);
 
     PAGED_CODE();
@@ -576,7 +576,19 @@ PocPostSetInformationOperationWhenSafe(
                                   __FUNCTION__, __LINE__));
                 }
                 PocUpdateFlagInStreamContext(StreamContext, POC_RENAME_TO_ENCRYPT);
-                PocAppendEncTailerLazy(StreamContext); // 不用担心重复加密和重复添加文件标识尾的问题。后续会自动解决。
+                Status = PocAppendEncTailerLazy(StreamContext); // 不用担心重复加密和重复添加文件标识尾的问题。后续会自动解决。
+                if (Status == STATUS_SUCCESS)
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                                 ("%s@%d PocAppendEncTailerLazy success. ProcessName = %ws, FileName = %ws\n",
+                                  __FUNCTION__, __LINE__, ProcessName, StreamContext->FileName));
+                }
+                else
+                {
+                    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES,
+                                 ("%s@%d PocAppendEncTailerLazy Failed. ProcessName = %ws, FileName = %ws\n",
+                                  __FUNCTION__, __LINE__, ProcessName, StreamContext->FileName));
+                }
             }
             else
             {
