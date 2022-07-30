@@ -105,7 +105,6 @@ NTSTATUS PocManualEncryptOrDecrypt(const PWCHAR _FileName, IN PFLT_INSTANCE Inst
 			if (!NT_SUCCESS(Status))
 			{
 				PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%s@%d FltCreateFileEx failed: 0x%x\n", __FUNCTION__, __FILE__, __LINE__, Status));
-				Status = POC_STATUS_EXCLUSIVE_OPEN_FILE_FAILED;
 				__leave;
 			}
 		}

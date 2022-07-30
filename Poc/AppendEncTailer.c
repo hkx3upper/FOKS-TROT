@@ -95,7 +95,6 @@ NTSTATUS PocAppendEncTailerToFile(
         {
             PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d FltCreateFileEx failed. Status = 0x%x.\n", __FUNCTION__, __LINE__, Status));
         }
-        Status = POC_STATUS_EXCLUSIVE_OPEN_FILE_FAILED;
         goto EXIT;
     }
 
@@ -128,7 +127,7 @@ NTSTATUS PocAppendEncTailerToFile(
     RtlMoveMemory(WriteBuffer, &EncryptionTailer, sizeof(POC_ENCRYPTION_TAILER));
 
     ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileSize = StreamContext->FileSize;
-    
+
     ((PPOC_ENCRYPTION_TAILER)WriteBuffer)->IsCipherText = StreamContext->IsCipherText;
     RtlMoveMemory(((PPOC_ENCRYPTION_TAILER)WriteBuffer)->FileName, StreamContext->FileName, wcslen(StreamContext->FileName) * sizeof(WCHAR));
     for (int i = 0; i < AES_BLOCK_SIZE; i++)
@@ -926,42 +925,6 @@ NTSTATUS PocAppendEncImmediately(IN PPOC_STREAM_CONTEXT StreamContext)
         ExReleaseResourceLite(StreamContext->Resource);
     }
 
-    if (POC_STATUS_EXCLUSIVE_OPEN_FILE_FAILED == Status)
-    {
-        // 遍历看看是否是机密进程打开了该文件，如果是机密进程打开的，则移除此次添加标识尾的尝试
-        // 因为机密进程会在关闭该文件时，自动添加标识尾，所以这里不需要再次添加标识尾
-
-        /*
-         * 这里要遍历一下判断操作该文件的所有授权进程已关闭，
-         * 此时可以重入加密或写入文件标识尾，不会有死锁了。
-         */
-
-        // for (ULONG i = 0; i < POC_MAX_AUTHORIZED_PROCESS_COUNT; i++)
-        // {
-        //     if (NULL != StreamContext->ProcessId[i])
-        //     {
-        //         /*
-        //          * 遍历一下链表，如果进程结束，
-        //          * 链表节点会在PocProcessNotifyRoutineEx函数中被清除掉。
-        //          */
-        //         Status = PocFindProcessInfoNodeByPidEx(
-        //             StreamContext->ProcessId[i],
-        //             NULL,
-        //             FALSE,
-        //             FALSE);
-
-        //         if (STATUS_SUCCESS != Status)
-        //         {
-        //             StreamContext->ProcessId[i] = NULL;
-        //         }
-        //         else
-        //         {
-        //             return STATUS_TOO_MANY_THREADS; //还是有授权进程在控制该文件
-        //         }
-        //     }
-        // }
-    }
-
     if (STATUS_SUCCESS == Status)
     {
         ExEnterCriticalRegionAndAcquireResourceExclusive(StreamContext->Resource);
@@ -983,7 +946,7 @@ NTSTATUS PocAppendEncTailerLazy(PPOC_STREAM_CONTEXT StreamContext)
     {
         return STATUS_SUCCESS;
     }
-    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d tyr to PocAppendEncImmediately failed.\n", __FUNCTION__, __LINE__));
+    PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d try to PocAppendEncImmediately failed. FileName = %ws\n", __FUNCTION__, __LINE__, StreamContext->FileName));
     if (!g_append_enc_tailer_enabled)
     {
         return STATUS_UNSUCCESSFUL;
@@ -1064,12 +1027,13 @@ VOID PocAppendEncTailerThread(PVOID param)
 
                     if (STATUS_SUCCESS != Status)
                     {
-                        if (Status != STATUS_INVALID_PARAMETER)
+                        if (Status != STATUS_INVALID_PARAMETER || STATUS_OBJECT_NAME_NOT_FOUND != Status ||
+                            STATUS_OBJECT_PATH_SYNTAX_BAD != Status)
                         {
                             remove_bool = FALSE;
                         }
-                        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s->PocAppendEncTailerToFile failed. Status = 0x%x. FileName = %ws .\n",
-                                                            __FUNCTION__,
+                        PT_DBG_PRINT(PTDBG_TRACE_ROUTINES, ("%s@%d PocAppendEncTailerToFile failed. Status = 0x%x. FileName = %ws .\n",
+                                                            __FUNCTION__, __LINE__,
                                                             Status,
                                                             StreamContext->FileName));
                     }
