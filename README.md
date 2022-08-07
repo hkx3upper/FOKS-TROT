@@ -73,7 +73,7 @@ https://www.microsoft.com/en-us/download/details.aspx?id=30688
 链接器的常规->附加库目录C:\Windows Kits\10\Cryptographic Provider Development Kit\Lib\x64  
 输入->附加依赖项ksecdd.lib
 ```
-6.在`Config.c`中设置目标文件扩展名，机密文件夹，以及授权进程  
+6.在`Config.c`中设置目标文件扩展名，机密文件夹，以及授权进程，备份进程  
 7.使用Visual Studio 2019编译Debug x64 Poc驱动，UserDll（可选）和UserPanel（可选）  
 8.鼠标右键菜单增加特权加密和特权解密功能（可选）  
 ```
@@ -100,15 +100,15 @@ rundll32.exe setupapi.dll,InstallHinfSection DefaultUninstall 132 路径\Poc.inf
 ```
 用notepad.exe（默认配置为授权进程）写入txt文件一些数据，
 然后使用wordpad.exe（默认配置为非授权进程）打开，只能看到杂乱的数据，说明加密成功。  
-P.S. 文件加密以后，即使关闭驱动（不重启电脑），记事本也是看到的明文（因为有缓冲存在）；
-加密标识尾只有在关机重启并不开驱动的情况下才能看到。  
+P.S. 文件加密以后，加密标识尾只有在关机重启且不开驱动的情况下才能看到。  
 ```
 ![bandicam-2022-06-07-14-17-43-706](https://user-images.githubusercontent.com/41336794/172311235-59075006-aa5e-42f1-a6c4-c976785e6f5a.gif)  
   
 11.使用编译好的或安装包中的PocUserPanel配置各种参数  
 </br><img src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
 ## Unfixed：
-授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。
+1.授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。  
+2.将文件标识尾改成文件标识头的方式，防止意外断电的情况（<a href="https://github.com/hkx3upper/Minifilter">之前的项目是用的文件标识头</a>）。
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：

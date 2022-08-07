@@ -45,6 +45,12 @@ PocPreWriteOperation(
     PagingIo = BooleanFlagOn(Data->Iopb->IrpFlags, IRP_PAGING_IO);
 
 
+    if (FLT_IS_FASTIO_OPERATION(Data))
+    {
+        Status = FLT_PREOP_DISALLOW_FASTIO;
+        goto ERROR;
+    }
+
     if (0 == ByteCount)
     {
         Status = FLT_PREOP_SUCCESS_NO_CALLBACK;
