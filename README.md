@@ -108,7 +108,7 @@ P.S. 文件加密以后，加密标识尾只有在关机重启且不开驱动的
 </br><img src="https://user-images.githubusercontent.com/41336794/173342125-2198e70f-8590-4002-ab7f-5dc5ef899720.JPG"></a></br>  
 ## Unfixed：
 1.授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。  
-2.将文件标识尾改成文件标识头的方式，防止意外断电的情况（<a href="https://github.com/hkx3upper/Minifilter">之前的项目是用的文件标识头</a>）。
+2.将文件标识尾改成文件标识头的方式，防止意外断电的情况。  
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：
