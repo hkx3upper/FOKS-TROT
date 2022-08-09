@@ -59,9 +59,9 @@ Windows Server 2019 DataCenter 1809(17763.379)
 ```
 找到注册表项：HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Debug Print Filter  
 没有Debug Print Filter就新建，在这个键下新建dword值 “default”，十六进制为0xF，然后重启电脑  
-以管理员身份DebugView，设置`Capture->Capture Kernel`显示驱动日志  
+以管理员身份运行DebugView，设置`Capture->Capture Kernel`显示驱动日志  
 ```
-4.下载安装包  
+4.下载安装包（可选）  
   
 [![Download](https://img.shields.io/badge/Download-5.09MB-green.svg "Download")](https://github.com/hkx3upper/FOKS-TROT/releases/ "Download")  
 `如果下载安装包，那就不需要手动编译项目了，可以直接跳到第10步`  
@@ -109,6 +109,7 @@ P.S. 文件加密以后，加密标识尾只有在关机重启且不开驱动的
 ## Unfixed：
 1.授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。  
 2.将文件标识尾改成文件标识头的方式，防止意外断电的情况。  
+3.驱动注入进程。  
 ## Wiki：
 [![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：
@@ -120,6 +121,18 @@ hkx3upper:(<a href="https://github.com/hkx3upper">@hkx3upper</a>)
 wangzhankun:(<a href="https://github.com/wangzhankun">@wangzhankun</a>)  
 MaterialDesignInXAML:(<a href="https://github.com/MaterialDesignInXAML">@MaterialDesignInXAML</a>)  
 CSharpDesignPro:(<a href="https://github.com/CSharpDesignPro/WPF---MVVM-Based-Modern-Dashboard">@CSharpDesignPro</a>)  
+Windows-driver-samples\filesys\fastfat:(<a href="https://github.com/microsoft/Windows-driver-samples/tree/main/filesys">Fastfat</a>)  
+Windows-driver-samples\filesys\minifilter:(<a href="https://github.com/microsoft/Windows-driver-samples/tree/main/filesys">Minifilter</a>)  
+WRK:(<a href="https://github.com/HighSchoolSoftwareClub/Windows-Research-Kernel-WRK-">WRK</a>)  
+WinNT4:(<a href="https://github.com/ZoloZiak/WinNT4">WinNT4</a>)  
+《Windows内核安全与驱动开发》 谭文  
+《Windows内核情景分析》 毛德操  
+《Windows内核原理与实现》 潘爱民  
+《Windows NT File System Internals - A Developer's 》  
+基于Minifilter微框架的文件加解密系统的设计与实现 何明 2014.06  
+基于双缓冲过滤驱动的透明加密系统研究与实现 刘晗 2010.04  
+基于 IBE 和 FUSE 的双向透明文件加密系统的研究与实现 何翔 2017.04  
+
 ## License：
 **Foxtrot**, and all its submodules and repos, unless a license is otherwise specified, are licensed under **GPLv3** LICENSE.  
 Dependencies are licensed by their own.  
