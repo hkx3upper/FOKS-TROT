@@ -123,16 +123,15 @@ MaterialDesignInXAML:(<a href="https://github.com/MaterialDesignInXAML">@Materia
 CSharpDesignPro:(<a href="https://github.com/CSharpDesignPro/WPF---MVVM-Based-Modern-Dashboard">@CSharpDesignPro</a>)  
 Windows-driver-samples\filesys\fastfat:(<a href="https://github.com/microsoft/Windows-driver-samples/tree/main/filesys">Fastfat</a>)  
 Windows-driver-samples\filesys\minifilter:(<a href="https://github.com/microsoft/Windows-driver-samples/tree/main/filesys">Minifilter</a>)  
-WRK:(<a href="https://github.com/HighSchoolSoftwareClub/Windows-Research-Kernel-WRK-">WRK</a>)  
+Windows-Research-Kernel:(<a href="https://github.com/HighSchoolSoftwareClub/Windows-Research-Kernel-WRK-">WRK</a>)  
 WinNT4:(<a href="https://github.com/ZoloZiak/WinNT4">WinNT4</a>)  
-《Windows内核安全与驱动开发》 谭文  
-《Windows内核情景分析》 毛德操  
-《Windows内核原理与实现》 潘爱民  
-《Windows NT File System Internals - A Developer's 》  
 基于Minifilter微框架的文件加解密系统的设计与实现 何明 2014.06  
 基于双缓冲过滤驱动的透明加密系统研究与实现 刘晗 2010.04  
 基于 IBE 和 FUSE 的双向透明文件加密系统的研究与实现 何翔 2017.04  
-
+Windows NT File System Internals - A Developer's  
+Windows内核安全与驱动开发 谭文  
+Windows内核情景分析 毛德操  
+Windows内核原理与实现 潘爱民  
 ## License：
 **Foxtrot**, and all its submodules and repos, unless a license is otherwise specified, are licensed under **GPLv3** LICENSE.  
 Dependencies are licensed by their own.  
