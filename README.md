@@ -128,7 +128,7 @@ WinNT4:(<a href="https://github.com/ZoloZiak/WinNT4">WinNT4</a>)
 基于Minifilter微框架的文件加解密系统的设计与实现 何明 2014.06  
 基于双缓冲过滤驱动的透明加密系统研究与实现 刘晗 2010.04  
 基于 IBE 和 FUSE 的双向透明文件加密系统的研究与实现 何翔 2017.04  
-Windows NT File System Internals - A Developer's  
+Windows NT File System Internals - A Developer's  Guide
 Windows内核安全与驱动开发 谭文  
 Windows内核情景分析 毛德操  
 Windows内核原理与实现 潘爱民  
