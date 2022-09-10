@@ -110,8 +110,6 @@ P.S. 文件加密以后，加密标识尾只有在关机重启且不开驱动的
 1.授权进程"另存为"会导致明文泄露，这里可以在PreCreate判断一下是否是授权进程+有写入倾向，是，则不过滤扩展名以及路径，让文件进入驱动控制。  
 2.将文件标识尾改成文件标识头的方式，防止意外断电的情况。  
 3.驱动注入进程。  
-## Wiki：
-[![Wiki](https://img.shields.io/badge/Wiki-writing-blue.svg "Wiki")](../../wiki "Wiki")
 ## Contributing：
 **Foxtrot** is now available for testing! Please test it and provide us with your valuable feedback and possible bugs.  
 [![Discussion](https://img.shields.io/badge/Discussion-welcome-blue.svg "Discussion")](https://github.com/hkx3upper/FOKS-TROT/discussions/30 "Discussion")
